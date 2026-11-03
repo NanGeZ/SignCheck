@@ -29,8 +29,8 @@ import java.util.List;
  */
 public final class ApkV2SignerVerifier {
 
-    private static final long APK_SIG_BLOCK_MAGIC_LO = 0x6b636f6c204b5041L; // "APK Sig Block 42" low
-    private static final long APK_SIG_BLOCK_MAGIC_HI = 0x206b636f6c204b50L; // high (LE read)
+    private static final byte[] APK_SIG_BLOCK_MAGIC =
+            "APK Sig Block 42".getBytes(java.nio.charset.StandardCharsets.US_ASCII);
     private static final int APK_SIGNATURE_SCHEME_V2_BLOCK_ID = 0x7109871a;
 
     public enum Status {
@@ -78,26 +78,25 @@ public final class ApkV2SignerVerifier {
             if (cdOff < 32) {
                 return new Result(Status.NO_V2_BLOCK, "no APK Signing Block", null);
             }
-            ByteBuffer footer = ByteBuffer.allocate(24);
-            footer.order(ByteOrder.LITTLE_ENDIAN);
+            // footer (24 bytes before CD): u64 sizeOfBlock | 16-byte magic
+            byte[] footer = new byte[24];
             raf.seek(cdOff - 24);
-            raf.readFully(footer.array());
-            long hi = footer.getLong(8);
-            long lo = footer.getLong(16);
-            if (hi != APK_SIG_BLOCK_MAGIC_HI || lo != APK_SIG_BLOCK_MAGIC_LO) {
-                return new Result(Status.NO_V2_BLOCK, "no APK Signing Block magic", null);
+            raf.readFully(footer);
+            for (int i = 0; i < 16; i++) {
+                if (footer[8 + i] != APK_SIG_BLOCK_MAGIC[i]) {
+                    return new Result(Status.NO_V2_BLOCK, "no APK Signing Block magic", null);
+                }
             }
-            long blockLen = footer.getLong(0);
+            long blockLen = ByteBuffer.wrap(footer).order(ByteOrder.LITTLE_ENDIAN).getLong(0);
             long blockOff = cdOff - blockLen - 8;
-            if (blockOff < 0 || blockOff + blockLen + 8 > cdOff) {
+            if (blockLen < 24 || blockOff < 0) {
                 return new Result(Status.PARSE_ERROR, "signing block size out of range", null);
             }
-            byte[] block = new byte[(int) blockLen];
-            raf.seek(blockOff + 8);
+            byte[] block = new byte[(int) (blockLen + 8)];
+            raf.seek(blockOff);
             raf.readFully(block);
-            // sanity: first 8 bytes of the block repeat the length
-            ByteBuffer blockBuf = ByteBuffer.wrap(block).order(ByteOrder.LITTLE_ENDIAN);
-            if (blockBuf.getLong(0) != blockLen - 24) {
+            // sanity: the leading u64 repeats sizeOfBlock
+            if (ByteBuffer.wrap(block).order(ByteOrder.LITTLE_ENDIAN).getLong(0) != blockLen) {
                 return new Result(Status.PARSE_ERROR, "signing block length mismatch", null);
             }
 
@@ -400,6 +399,7 @@ public final class ApkV2SignerVerifier {
     // ---- little-endian length-prefixed slice helpers (returns null on malformed input) ----
 
     private static ByteBuffer readLengthPrefixedSlice(ByteBuffer b) {
+        b.order(ByteOrder.LITTLE_ENDIAN); // duplicate()/slice() do not inherit byte order
         if (b.remaining() < 4) {
             return null;
         }

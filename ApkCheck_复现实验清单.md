@@ -374,7 +374,29 @@ ApkV2SignerVerifier.Result r = ApkV2SignerVerifier.verify(apkFile, expectedCertS
 - 只取第一个 signer；proof-of-rotation（`0x3ba06f8c`）仅识别、未做链式验签；
 - 未做 digests 与 signatures 算法 ID 列表一致性比对（规范防签名剥离步骤），建议 walk 条目时收集两个 ID 列表对比；
 - CHUNKED_SHA512（`0x0403`）未实现；
-- 摘要算法已与官方规范逐条核对，但沙箱内无 apksigner 无法做真值对照——部署前请用 `apksigner verify --print-certs` 输出的 digest 与本实现结果比对一次确认。
+- 真值对照已完成：在真实 apksigner 签名 APK（v1+v2，SHA256withRSA）上全链验证 `PASS`，CHUNKED_SHA256 摘要与签名块内记录字节级一致，单字节篡改可检出。调试中修复的关键实现陷阱：Java `ByteBuffer.duplicate()/slice()` **不继承字节序**（重置为 BIG_ENDIAN），所有小端读取已在 `readLengthPrefixedSlice` 入口统一强制 `LITTLE_ENDIAN`。
+
+### 6.3 接入实测（NGTool APK 基线）
+
+在真实 APK（NGTool-2.1.0-release）上实测的基线与接入方式：
+
+- **签名基线**：v1 + v2 双方案，RSA-2048 / SHA256withRSA，证书 CN=nangezi（有效期 2025-2075），APK Signing Block 4096 字节
+- **信任锚常量**（建议多处交叉存放：Java + native so + 资源）：
+
+```java
+private static final String EXPECTED_CERT_SHA256 =
+        "d58cdf2d7b1e6f74e70f1497727bf7875478b4231f328ad57a232242087dd691";
+
+// Application.onCreate / 主入口 / JNI 层多处调用，单一失败源不可信
+ApkV2SignerVerifier.Result r = ApkV2SignerVerifier.verify(
+        new File(getApplicationInfo().sourceDir), EXPECTED_CERT_SHA256);
+if (r.status != ApkV2SignerVerifier.Status.PASS) {
+    // fail closed：中断核心功能 + 上报（勿仅弹提示）
+}
+```
+
+- **实测证据**：原包 `PASS`（验签 + 内容摘要 + 证书指纹全通过）；翻转任意 1 字节 → `VERIFY_FAILED: APK content digest mismatch (tampered)`
+- **补强建议**：配合样本 Other 类思路做 maps/inode 交叉防 IO 重定向；期望值不一致时静默降级比崩溃更难被破解者定位，但需有远端上报
 
 ---
 

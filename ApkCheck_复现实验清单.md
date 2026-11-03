@@ -212,7 +212,96 @@ Sign(API) 是否被绕过（绿）：是 / 否
 备注：____________
 ```
 
-## 5. 注意事项
+## 5. 高风险校验项：防御加固与绕过研究方向
+
+> 本章从攻防双视角分析高风险项。**防御侧**为可落地的加固建议（供防护开发参考）；
+> **绕过侧**仅作攻击面/研究方向分析（供红队评估与防御验证），不含具体绕过实现。
+> 风险分级依据：①该项是否是整个校验体系的信任锚（被破则连锁失守）；②该项本身的实现弱点。
+
+### 5.1 信任锚分级
+
+| 级别 | 校验项 | 定位 |
+|---|---|---|
+| **S（核心锚）** | Sign(Binder)、Sign(V1)、$Sign(aKeyAtt) | 签名真值来源；任一被系统性伪造则签名校验整体失守 |
+| **A（重定向检测锚）** | Package(Inode)、LoadAPKRes、ApkFDPath | IO 重定向对抗的第一道防线；三者需同时失效重定向才能成立 |
+| **B（hook 检测锚）** | $LibraryGot、LibraryFileMemory | 内存篡改检测；易被更底层手段绕过 |
+| **C（痕迹检测）** | HiddenApiExemptions、ProcessStatus、OpenFDList | 依赖对手"留尾巴"，对手规范化后天然失效 |
+| **弱点项** | Sign(API) | 防护价值低（Java hook 一击即溃），但保留有意义：作为对照基线暴露攻击存在 |
+
+### 5.2 Sign(Binder)（S 级）
+
+- **风险点**：①事务码 `0x3`/`0x9` 为硬编码，厂商 ROM / Android 15+ 可能漂移，导致误报或静默失效；②`BinderInternal.getContextObject()` 在部分 ROM 是黑名单方法；③信任链止于 system_server 返回值。
+- **防御加固**：
+  1. 事务码改为运行时从 `IPackageManager$Stub` 的 `TRANSACTION_*` 静态字段反射获取，消除硬编码漂移；
+  2. 对 Parcel 回包做长度/结构二次校验（作者注释中保留的 Size 对比思路，可作为辅助层启用）；
+  3. 与 `$Sign(aKeyAtt)` 结果做一致性绑定：软件通道与硬件通道结论不一致直接判失败。
+- **绕过研究方向**（评估用）：Java 层已无法覆盖（直连 IBinder），研究面下沉至——native 层 libbinder 的 `transact` 拦截、binder 驱动层（内核/内核模块）的事务篡改、或定制 ROM 在 system_server 侧作假。评估重点：在不惊动 `Field`（mPM 类名检查）与 `ProcessStatus` 的前提下实现上述任一路径的可行性与成本。
+
+### 5.3 Sign(V1)（S 级）
+
+- **风险点**：①校验的是 V1 签名，纯 V2/V3 签名包（无 `META-INF/*.RSA`）会直接判 `No META-INF/.RSA File`——对本样本自洽，但作为防御参考不适用于现代 APK；②逐文件遍历大包耗时长，可能被利用做时序竞争（校验期间替换）；③摘要比对用 `Arrays.hashCode` 而非密码学比较，理论可构造碰撞。
+- **防御加固**：
+  1. 大文件场景改用整体包 MD5/SHA-256 比对（作者注释亦持此观点），逐文件校验仅保留给关键文件（dex、manifest）；
+  2. 哈希比较换成常量时间的密码学摘要比较（`MessageDigest.isEqual`）；
+  3. 增加 V2/V3 签名块解析（读 APK Signing Block），兼容新签名方案。
+- **绕过研究方向**（评估用）：碰撞构造（针对 32 位 hashCode，成本低但需控制 zip 条目布局）、校验窗口期 TOCTOU、或让校验本身抛异常落入黑色异常通道（注意 `sendFailMess` 对异常只记黑色不判红，"制造异常掩盖篡改"是值得评估的旁路思路）。
+
+### 5.4 $Sign(aKeyAtt)（S 级，最强锚）
+
+- **风险点**：①扩展解析用**包名 hex 字符串 split** 提取 APPSHA256，属启发式解析，不同 Keymaster 实现的扩展编码差异可能误判；②`setAttestationChallenge(new byte[0])` 空挑战，无防重放语义；③默认关闭且单次耗时长，实际部署易被弃用。
+- **防御加固**：
+  1. 用 ASN.1 正规解析 Key Attestation 扩展（按 OID 逐层取 attestationApplicationData 节），替代字符串 split；
+  2. 加入非空挑战（服务端下发 nonce）并与业务会话绑定；
+  3. 作为启动期一次性校验 + 结果缓存，降低耗时顾虑。
+- **绕过研究方向**（评估用）：软件层几乎不可伪造（TEE 签发）。研究面只剩：模拟器/定制 TEE 环境、以及利用该实现的解析弱点（构造使 `split` 结果异常从而走 `return` 静默跳过——**解析失败即不校验**是该实现最值得评估的逻辑旁路）。
+
+### 5.5 Package(Inode) + LoadAPKRes + ApkFDPath（A 级，重定向检测组）
+
+- **风险点**：三项构成重定向检测的交叉验证，但共享同一盲区——**均从应用进程视角读取**（maps、fd、Memory.peek 均可被同一进程内的更底层机制统一伪造）；`LoadAPKRes` 对整段内存做 `Arrays.hashCode`，大映射段开销大；maps 匹配用包名正则，路径混淆可干扰。
+- **防御加固**：
+  1. 把三方交叉升级为四方：加入 `statx`/`fstat`（对已打开 fd 取 inode）与 `openat2` 的 `RESOLVE_BENEATH` 校验；
+  2. 内存段哈希改为抽样 + 密码学摘要（如每 4KB 取 64 字节做 SHA-256 链），降低开销同时抗碰撞；
+  3. 将该组结果与 Shell 组（Sign(Cat)/Package(ID)）交叉——**进程边界交叉**是该样本已有但可强化的设计（shell 进程与应用进程必须同源一致）。
+- **绕过研究方向**（评估用）：关键在"统一伪造所有应用进程视角"——研究面为内核层（挂载/fuse/内核模块）实现 open/stat/readlink/maps 的一致性伪造，或 ptrace 注入后同步 patch 三个数据源。评估标准：能否做到 inode、内存映射、fd 路径三者**自洽**且与 shell 进程观察一致；做不到自洽即被本组检出。
+
+### 5.6 $LibraryGot + LibraryFileMemory（B 级）
+
+- **风险点**：①GOT 检查只认"指针来源须在 /system、/apex"，若把恶意代码注入已有系统库映射段（或利用 JIT/匿名可执行段技巧伪装路径）则判定失效；②libc/libart 段比对用乘法滚动哈希，可构造碰撞；③新版 Android 的 CFI/PAC、scudo 等使 GOT 改写本身难度上升，但检测逻辑未覆盖 MTE/BTI 异常段。
+- **防御加固**：
+  1. 哈希换成 SHA-256；2. 对 `rwxp` 段一律报警（现代 Android 不应存在应用可写可执行段）；
+  3. 增加对匿名可执行段（无路径映射）的存在性检查。
+- **绕过研究方向**（评估用）：不改 GOT 而改用 eBPF/uprobe、inline hook 仅 patch 指令缓存后立刻恢复（飞行检查窗口）、或直接在系统库自身代码洞穴（code cave）内联跳板——三者均以"逃逸指针来源检查"为核心思路。
+
+### 5.7 HiddenApiExemptions / ProcessStatus / OpenFDList（C 级，痕迹类）
+
+- **风险点**：本质是"对手失误检测"——HiddenApiBypass 提供恢复 API、seccomp 可在检查后安装、memfd 可用后即关。**对手规范化操作后整组失效**，不可作为独立防线。
+- **防御加固**：只能做纵深冗余——在多个时间点（启动、前台切换、随机）重复检查并比对差异（如启动时记 seccomp_filters 基线，运行中增量检测）；检测到痕迹直接降级业务而非仅提示。
+- **绕过研究方向**（评估用）：规范化的擦除流程（恢复豁免、用完即焚的 fd、校验后装 seccomp）。该组的评估价值在于验证"商业过签工具是否留尾巴"，而非对抗定制攻击。
+
+### 5.8 Sign(API)（弱点项，保留价值）
+
+- **风险点**：任何 Java/native hook 一击即溃，无独立防护价值。
+- **防御加固**：不单独依赖；唯一正确用法是**与 Sign(Binder) 做差分**——两者不一致即判定 hook 存在（API 被伪造本身就是攻击证据）。
+- **绕过研究方向**（评估用）：作为攻击入口验证（E3 实验），确认其余锚点能否在 API 层被绕过后仍完成检出——这是整个样本"多通道交叉"设计的试金石。
+
+### 5.9 系统性绕过评估方法论（红队收口）
+
+对本样本做整体评估时，不要逐项绕过，按**通道归类**验证：
+
+| 通道 | 覆盖项 | 统一绕过所需能力 |
+|---|---|---|
+| Java API | Sign(API)、Package(Name/Path)、DebugCheck | 任意 hook |
+| Binder 直连 | Sign(Binder)、AppInfo(Binder)、ContextProvider | binder 驱动/系统侧 |
+| 文件 IO | Sign(V1)、Sign(Cat)、$Sign(RunDex) | 应用进程 + shell 进程 IO 重定向 |
+| 进程内存 | LoadAPKRes、DexSum、LibraryFileMemory、$LibraryGot | 进程内统一伪造或内核级 |
+| 系统属性 | Package(ID/Inode/Size) | shell/stat 层 |
+| 硬件/TEE | $Sign(aKeyAtt) | 几乎不可绕（仅解析逻辑旁路） |
+
+**评估结论模板**：攻击者需同时接管 ≥3 个通道且保持相互自洽，才可能在不触发任何红项的前提下完成过签；任一通道遗漏即被交叉验证捕获——这正是该样本的设计目标。
+
+---
+
+## 6. 注意事项
 
 - 所有 `$` 项建议在每轮实验前统一开启，避免漏检（长按应用信息栏调出开关）。
 - E1 的 6 项全红是"重签"的指纹；若某工具声称过签但 E1 仍全红，说明它只做了完整性欺骗，未处理签名真值。

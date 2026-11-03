@@ -301,7 +301,84 @@ Sign(API) 是否被绕过（绿）：是 / 否
 
 ---
 
-## 6. 注意事项
+## 6. 防御实现代码（ASN.1 解析与 V2 签名块校验）
+
+配套源码（`com.doubihuaji.Check.defense` 包，纯 Java、无第三方依赖，已通过 `javac` 编译验证）：
+
+- [Asn1.java](file:///workspace/apkcheck-defense/Asn1.java) — 最小化 DER/ASN.1 解析器（SEQUENCE、SET、INTEGER、OID、OCTET STRING 及字符串类型；严格边界检查，畸形输入抛异常而非越界读）
+- [KeyAttestationVerifier.java](file:///workspace/apkcheck-defense/KeyAttestationVerifier.java) — Key Attestation 扩展（OID `1.3.6.1.4.1.11129.2.1.17`）ASN.1 正规解析 + APPSHA256 比对，替换样本的启发式 split
+- [ApkV2SignerVerifier.java](file:///workspace/apkcheck-defense/ApkV2SignerVerifier.java) — APK Signature Scheme v2 全链校验：签名块定位 → signer 解析 → 验签 → 内容摘要 → 证书指纹
+
+（`android.security.keystore.*` 仅在 Android 侧存在；桌面编译验证所用的 API 桩不随附。）
+
+### 6.1 Key Attestation 扩展解析
+
+样本问题回顾（5.4 节）：按包名 hex 字符串 split 提取 APPSHA256，解析失败直接 `return`（静默跳过）。防御实现走正规 TLV 遍历，并把"解析失败"作为独立状态——绝不等于通过：
+
+```text
+扩展值 OCTET STRING
+  └─ KeyDescription SEQUENCE
+       └─ authorizationList SEQUENCE（[1]）
+            └─ [70] attestationApplicationData（0xBF46）
+                 └─ OCTET STRING
+                      └─ SEQUENCE { pkgDigest OCTET STRING, ... }
+```
+
+```java
+Asn1 outer = Asn1.parse(extValue);                            // 扩展值本身是 OCTET STRING
+Asn1 keyDesc = outer.is(Asn1.TAG_OCTET_STRING) ? Asn1.parse(outer.value) : outer;
+Asn1 authList = keyDesc.child(Asn1.TAG_SEQUENCE);             // authorizationList
+Asn1 appDataNode = authList.child(0xBF46);                    // attestationApplicationData [70]
+Asn1 pkgDigest = Asn1.parse(octets.value).child(Asn1.TAG_OCTET_STRING);
+String actual = toHex(pkgDigest.value);                       // 与期望摘要常量时间比较
+```
+
+调用与处置（fail closed，永不静默放行）：
+
+```java
+KeyAttestationVerifier.Result r =
+        KeyAttestationVerifier.verifyExpectedDigest("app_attest", expectedSha256Hex);
+// PASS / DIGEST_MISMATCH / PARSE_ERROR / NO_ATTESTATION / KEYSTORE_ERROR
+// 仅 PASS 通过；PARSE_ERROR 显式判失败（封堵样本的 return 旁路）；
+// NO_ATTESTATION（设备不支持）走降级策略，由调用方定义（上报 / 仅记日志 / 降级功能）
+```
+
+### 6.2 V2 签名块校验
+
+样本问题回顾（5.3 节）：`Sign(V1)` 只认 `META-INF/*.RSA`，纯 V2/V3 包会误判；逐文件 `Arrays.hashCode` 弱。防御实现按官方 v2 规范补齐现代 APK 的完整性锚：
+
+1. EOCD 定位 → 中央目录起点 → APK Signing Block（尾部 magic `"APK Sig Block 42"`）；
+2. 解析 v2 block（ID `0x7109871a`）：`signer` = signed data / signatures / public key，各层 uint32 小端长度前缀；
+3. 用证书公钥验证 signed data 签名（SHA256withRSA / SHA256withECDSA / SHA256withDSA）；
+4. 公钥 SPKI 与证书一致性校验（规范验证步骤，防公钥/证书错配）；
+5. 内容摘要比对（CHUNKED_SHA256，ID `0x0103`），三个保护区：块前内容 / 中央目录 / EOCD：
+
+```text
+每个保护区各自切成连续 1MB 块，末块可短（分块不跨区）：
+  chunkDigest   = SHA-256( 0xa5 || u32le(块长) || 块内容 )
+  contentDigest = SHA-256( 0x5a || u32le(块数) || 各 chunkDigest 顺序拼接 )
+EOCD 参与摘要前，将"中央目录偏移"字段（偏移 16）改写为签名块起始偏移（规范归一化规则）
+```
+
+6. 证书 SHA-256 指纹与期望值比对（信任锚）。
+
+```java
+ApkV2SignerVerifier.Result r = ApkV2SignerVerifier.verify(apkFile, expectedCertSha256Hex);
+// PASS / CERT_MISMATCH / NO_V2_BLOCK / VERIFY_FAILED / PARSE_ERROR / IO_ERROR
+// NO_V2_BLOCK（纯 V1 或 v2 被剥离）→ 交 Sign(V1) 通道兜底，不可放行
+// 命令行冒烟：java com.doubihuaji.Check.defense.ApkV2SignerVerifier base.apk <证书SHA-256 hex>
+```
+
+已知边界（部署前补强点）：
+
+- 只取第一个 signer；proof-of-rotation（`0x3ba06f8c`）仅识别、未做链式验签；
+- 未做 digests 与 signatures 算法 ID 列表一致性比对（规范防签名剥离步骤），建议 walk 条目时收集两个 ID 列表对比；
+- CHUNKED_SHA512（`0x0403`）未实现；
+- 摘要算法已与官方规范逐条核对，但沙箱内无 apksigner 无法做真值对照——部署前请用 `apksigner verify --print-certs` 输出的 digest 与本实现结果比对一次确认。
+
+---
+
+## 7. 注意事项
 
 - 所有 `$` 项建议在每轮实验前统一开启，避免漏检（长按应用信息栏调出开关）。
 - E1 的 6 项全红是"重签"的指纹；若某工具声称过签但 E1 仍全红，说明它只做了完整性欺骗，未处理签名真值。

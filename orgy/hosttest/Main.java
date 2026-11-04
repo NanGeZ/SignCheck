@@ -24,7 +24,7 @@ public final class Main {
 
         byte[] dex = Files.readAllBytes(Paths.get(payloadDir.getPath(), "classes.dex"));
         Map<String, byte[]> so = new LinkedHashMap<>();
-        for (String abi : new String[]{"arm64-v8a", "armeabi-v7a", "x86_64"}) {
+        for (String abi : new String[]{"arm64-v8a", "armeabi-v7a", "x86_64", "x86"}) {
             File f = new File(payloadDir, "libsigncheck-" + abi + ".so");
             if (f.isFile()) so.put(abi, Files.readAllBytes(f.toPath()));
         }

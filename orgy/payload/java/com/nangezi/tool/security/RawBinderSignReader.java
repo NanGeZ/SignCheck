@@ -81,6 +81,8 @@ public final class RawBinderSignReader {
             if (reply.readInt() == 0) return false;
             android.content.pm.PackageInfo pi =
                     android.content.pm.PackageInfo.CREATOR.createFromParcel(reply);
+            // 反序列化结果必须就是请求的包（防 Binder 应答串包/被 Hook 返回他人 PackageInfo）
+            if (pi == null || pi.packageName == null || !pi.packageName.equals(packageName)) return false;
             out.certSha256 = firstCertSha256(pi);
             return out.certSha256 != null;
         } catch (Throwable t) {
@@ -101,6 +103,8 @@ public final class RawBinderSignReader {
                 if (hist != null && hist.length > 0) cert = hist[0].toByteArray();
             }
             if (cert == null) return null;
+            // 证书必须是 DER（SEQUENCE 0x30 起始），防被塞入任意字节冒充
+            if (cert.length < 64 || cert[0] != 0x30) return null;
             return toHex(MessageDigest.getInstance("SHA-256").digest(cert));
         } catch (Throwable t) {
             return null;

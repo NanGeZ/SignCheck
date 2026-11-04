@@ -34,7 +34,7 @@ enum {
     SC_E_PARSE_ERROR = 4,      /* 结构解析失败（异常结构，按篡改处理） */
     SC_E_IO_ERROR = 5,         /* 文件读取失败 */
     SC_E_ANCHOR_MISMATCH = 6,  /* Java 与 native 信任锚副本不一致（单侧被篡改） */
-    SC_E_NO_USABLE_SIG = 7,    /* 无可用的 RSA PKCS#1 SHA-256 (0x0101) 签名条目 */
+    SC_E_NO_USABLE_SIG = 7,    /* 无可用的 RSA 签名条目（0x0101-0x0104）或公钥非 RSA */
     SC_E_NOMEM = 8             /* 内存分配失败 */
 };
 

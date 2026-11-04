@@ -38,15 +38,8 @@ public final class AppProxyFactory extends AppComponentFactory {
 
     private static final String PROXY = "com.nangezi.tool.security.AppProxy";
 
-    /** AppProxy 完成签名校验后置位；决定原 Application 创建是否放行。 */
-    private static volatile boolean sVerified = false;
     /** 原 factory 实例（惰性创建，可为 null）。 */
     private static volatile AppComponentFactory sOriginal;
-
-    /** 由 AppProxy 在 SignGate.checkOrDie() 通过后调用。 */
-    static void markVerified() {
-        sVerified = true;
-    }
 
     @Override
     public Application instantiateApplication(ClassLoader cl, String className)
@@ -55,7 +48,7 @@ public final class AppProxyFactory extends AppComponentFactory {
             return super.instantiateApplication(cl, PROXY);
         }
         String orig = SignCheck.origApplicationName();
-        if (orig != null && orig.equals(className) && sVerified) {
+        if (orig != null && orig.equals(className) && SignGate.isVerified()) {
             AppComponentFactory f = originalFactory();
             if (f != null) {
                 try {
@@ -69,7 +62,7 @@ public final class AppProxyFactory extends AppComponentFactory {
         }
         /* 未经 AppProxy 校验就要求实例化 Application：manifest 篡改 / 异常调用，杀进程 */
         SignGate.failClosed("AppProxyFactory: unexpected instantiateApplication(" + className
-                + ") verified=" + sVerified);
+                + ") verified=" + SignGate.isVerified());
         throw new SecurityException("unreachable");   /* failClosed 不返回，编译器需要 */
     }
 

@@ -231,7 +231,7 @@ private fun OrgyApp() {
 
                                     val dex = ctx.assets.open("payload/classes.dex").use { it.readBytes() }
                                     val so = LinkedHashMap<String, ByteArray>()
-                                    for (abi in listOf("arm64-v8a", "armeabi-v7a", "x86_64")) {
+                                    for (abi in listOf("arm64-v8a", "armeabi-v7a", "x86_64", "x86")) {
                                         runCatching {
                                             ctx.assets.open("payload/libsigncheck-$abi.so").use { so[abi] = it.readBytes() }
                                         }

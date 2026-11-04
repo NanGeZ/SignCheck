@@ -29,13 +29,17 @@ public final class V2SignBlock {
         public final byte[] certDer;          // 第一签名者证书 DER
         public final String certSha256Hex;    // 小写 hex
         public final boolean hasV1, hasV2, hasV3;
+        /** 第一个 RSA 签名条目 algId（0x0101-0x0104），无 RSA 条目为 -1。
+         *  运行时校验器（native/Java）仅支持 RSA 签名目标。 */
+        public final int rsaSigAlgId;
 
-        Info(byte[] certDer, String sha, boolean v1, boolean v2, boolean v3) {
+        Info(byte[] certDer, String sha, boolean v1, boolean v2, boolean v3, int rsaSigAlgId) {
             this.certDer = certDer;
             this.certSha256Hex = sha;
             this.hasV1 = v1;
             this.hasV2 = v2;
             this.hasV3 = v3;
+            this.rsaSigAlgId = rsaSigAlgId;
         }
 
         public String schemeText() {
@@ -72,14 +76,14 @@ public final class V2SignBlock {
             long cdSize = le32(eocd, 12);
 
             if (cdOff < 32) {
-                return new Info(null, null, hasV1, false, false);
+                return new Info(null, null, hasV1, false, false, -1);
             }
             byte[] footer = new byte[24];
             raf.seek(cdOff - 24);
             raf.readFully(footer);
             for (int i = 0; i < 16; i++) {
                 if (footer[8 + i] != SIG_BLOCK_MAGIC[i]) {
-                    return new Info(null, null, hasV1, false, false);
+                    return new Info(null, null, hasV1, false, false, -1);
                 }
             }
             long blockLen = le64(footer, 0);
@@ -105,34 +109,51 @@ public final class V2SignBlock {
                 else if (id == ID_VERITY) { /* v2 verity, 同属 v2 系 */ }
             }
             if (!hasV2) {
-                return new Info(null, null, hasV1, false, hasV3);
+                return new Info(null, null, hasV1, false, hasV3, -1);
             }
 
-            byte[] certDer = firstSignerCert(v2Value);
+            Signer s = firstSigner(v2Value);
+            byte[] certDer = s.certDer;
             String sha;
             try {
                 sha = toHex(MessageDigest.getInstance("SHA-256").digest(certDer));
             } catch (java.security.NoSuchAlgorithmException e) {
                 throw new IOException("SHA-256 unavailable", e);
             }
-            return new Info(certDer, sha, hasV1, true, hasV3);
+            return new Info(certDer, sha, hasV1, true, hasV3, s.rsaSigAlgId);
         }
     }
 
-    /** v2Value = length-prefixed signers 序列 → 第一 signer → signedData → certificates[0]。 */
-    private static byte[] firstSignerCert(byte[] v2Value) throws IOException {
+    private static final class Signer {
+        byte[] certDer;
+        int rsaSigAlgId = -1;
+    }
+
+    /** v2Value = length-prefixed signers 序列 → 第一 signer → signedData → certificates[0]，
+     *  并扫描 signatures 找第一个 RSA 签名条目（0x0101-0x0104）。 */
+    private static Signer firstSigner(byte[] v2Value) throws IOException {
         ByteBuffer v2 = ByteBuffer.wrap(v2Value).order(ByteOrder.LITTLE_ENDIAN);
         ByteBuffer signers = lp(v2);
         ByteBuffer signer = lp(signers);
         ByteBuffer signedData = lp(signer);
-        lp(signer); // signatures
+        ByteBuffer signatures = lp(signer);
         lp(signer); // public key
         lp(signedData); // digests
         ByteBuffer certificates = lp(signedData);
         ByteBuffer cert0 = lp(certificates);
-        byte[] der = new byte[cert0.remaining()];
-        cert0.get(der);
-        return der;
+        Signer out = new Signer();
+        out.certDer = new byte[cert0.remaining()];
+        cert0.get(out.certDer);
+        while (signatures.hasRemaining()) {
+            ByteBuffer one = lp(signatures);
+            if (one.remaining() < 4) break;
+            int algId = one.getInt();
+            if (algId >= 0x0101 && algId <= 0x0104) {
+                out.rsaSigAlgId = algId;
+                break;
+            }
+        }
+        return out;
     }
 
     private static ByteBuffer lp(ByteBuffer b) throws IOException {

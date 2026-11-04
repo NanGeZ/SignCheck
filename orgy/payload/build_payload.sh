@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# build_payload.sh — 构建 Orgy 注入 payload（classes.dex + 3 ABI libsigncheck.so）
+# build_payload.sh — 构建 Orgy 注入 payload（classes.dex + 4 ABI libsigncheck.so）
 #
 # 产物（供 ZipRebuilder 打包进目标 APK / Orgy app assets）：
 #   /workspace/orgy/app/src/main/assets/payload/classes.dex
@@ -35,7 +35,7 @@ echo "== [2/4] d8 -> classes.dex =="
 if [ "${SKIP_SO:-0}" = "1" ]; then
     echo "== [3/4] ndk-build 跳过（SKIP_SO=1，沿用现有 so 产物） =="
 else
-    echo "== [3/4] ndk-build -> libsigncheck.so (arm64-v8a armeabi-v7a x86_64) =="
+    echo "== [3/4] ndk-build -> libsigncheck.so (arm64-v8a armeabi-v7a x86_64 x86) =="
     cd "$PAYLOAD/native"
     "$NDK/ndk-build" NDK_PROJECT_PATH="$PAYLOAD/native" \
         APP_BUILD_SCRIPT="$PAYLOAD/native/Android.mk" \
@@ -47,7 +47,7 @@ fi
 echo "== [4/4] 拷贝产物 + 占位符自检 =="
 cp "$OUT/dex/classes.dex" "$ASSETS/classes.dex"
 if [ "${SKIP_SO:-0}" != "1" ]; then
-    for abi in arm64-v8a armeabi-v7a x86_64; do
+    for abi in arm64-v8a armeabi-v7a x86_64 x86; do
         cp "$OUT/libs/$abi/libsigncheck.so" "$ASSETS/libsigncheck-$abi.so"
     done
 fi
@@ -67,7 +67,7 @@ for name, pat in (("DEX_A", DEX_A), ("DEX_B", DEX_B), ("ORIG_APP", ORIG), ("ORIG
     c = dex.count(pat)
     print(f"classes.dex {name}: count={c} len={len(pat)}")
     ok &= (c == 1)
-for abi in ("arm64-v8a", "armeabi-v7a", "x86_64"):
+for abi in ("arm64-v8a", "armeabi-v7a", "x86_64", "x86"):
     so = (assets / f"libsigncheck-{abi}.so").read_bytes()
     for name, pat in (("SO_A", SO_A), ("SO_B", SO_B)):
         c = so.count(pat)

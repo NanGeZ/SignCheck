@@ -10,10 +10,10 @@
  *  - g_last_status 在 native 侧保存权威结果，防止 Java 层静态变量被篡改后蒙混。
  *
  * 已知边界（详见 README）：
- *  - 仅支持 RSA PKCS#1 v1.5 + SHA-256 签名条目：接受 0x0101（规范算法）与 0x0103
- *    （规范定义 SHA-512，但生态签名工具广泛误标为 SHA-256，实测确为 SHA-256 签名；
- *    以 DigestInfo OID 严格校验密码学实质，拒绝任何非 SHA-256 摘要）。
- *    PSS(0x0102)/SHA-384(0x0104) 返回 SC_E_NO_USABLE_SIG。
+ *  - RSA 签名条目全覆盖：0x0101(PSS-SHA256)、0x0102(PSS-SHA512)、
+ *    0x0103(PKCS#1-SHA256，apksigner 默认/生态主流)、0x0104(PKCS#1-SHA512)。
+ *    每条目按声明方案验签、并以其余方案兜底（防签名工具误标 algId）。
+ *  - EC/DSA 签名条目不支持（返回 SC_E_NO_USABLE_SIG），注入器侧已限制仅接受 RSA。
  *  - 仅支持 ≤4096-bit RSA 模数；公钥指数需 ≤ 0xFFFFFFFF（65537 均满足）。
  *  - ZIP 偏移量为 u32，不支持 >4GB APK。
  */
@@ -147,6 +147,125 @@ static void sha256_buf(const void *d, size_t n, uint8_t out[32])
     sha256_final(&c, out);
 }
 
+/* ---------- SHA-512 (FIPS 180-4)，PKCS#1-SHA512 / PSS-SHA512 需要 ---------- */
+
+typedef struct {
+    uint64_t h[8];
+    uint64_t total;
+    uint8_t  buf[128];
+    size_t   bl;
+} sha512_ctx;
+
+static const uint64_t K512[80] = {
+    0x428a2f98d728ae22ULL, 0x7137449123ef65cdULL, 0xb5c0fbcfec4d3b2fULL, 0xe9b5dba58189dbbcULL,
+    0x3956c25bf348b538ULL, 0x59f111f1b605d019ULL, 0x923f82a4af194f9bULL, 0xab1c5ed5da6d8118ULL,
+    0xd807aa98a3030242ULL, 0x12835b0145706fbeULL, 0x243185be4ee4b28cULL, 0x550c7dc3d5ffb4e2ULL,
+    0x72be5d74f27b896fULL, 0x80deb1fe3b1696b1ULL, 0x9bdc06a725c71235ULL, 0xc19bf174cf692694ULL,
+    0xe49b69c19ef14ad2ULL, 0xefbe4786384f25e3ULL, 0x0fc19dc68b8cd5b5ULL, 0x240ca1cc77ac9c65ULL,
+    0x2de92c6f592b0275ULL, 0x4a7484aa6ea6e483ULL, 0x5cb0a9dcbd41fbd4ULL, 0x76f988da831153b5ULL,
+    0x983e5152ee66dfabULL, 0xa831c66d2db43210ULL, 0xb00327c898fb213fULL, 0xbf597fc7beef0ee4ULL,
+    0xc6e00bf33da88fc2ULL, 0xd5a79147930aa725ULL, 0x06ca6351e003826fULL, 0x142929670a0e6e70ULL,
+    0x27b70a8546d22ffcULL, 0x2e1b21385c26c926ULL, 0x4d2c6dfc5ac42aedULL, 0x53380d139d95b3dfULL,
+    0x650a73548baf63deULL, 0x766a0abb3c77b2a8ULL, 0x81c2c92e47edaee6ULL, 0x92722c851482353bULL,
+    0xa2bfe8a14cf10364ULL, 0xa81a664bbc423001ULL, 0xc24b8b70d0f89791ULL, 0xc76c51a30654be30ULL,
+    0xd192e819d6ef5218ULL, 0xd69906245565a910ULL, 0xf40e35855771202aULL, 0x106aa07032bbd1b8ULL,
+    0x19a4c116b8d2d0c8ULL, 0x1e376c085141ab53ULL, 0x2748774cdf8eeb99ULL, 0x34b0bcb5e19b48a8ULL,
+    0x391c0cb3c5c95a63ULL, 0x4ed8aa4ae3418acbULL, 0x5b9cca4f7763e373ULL, 0x682e6ff3d6b2b8a3ULL,
+    0x748f82ee5defb2fcULL, 0x78a5636f43172f60ULL, 0x84c87814a1f0ab72ULL, 0x8cc702081a6439ecULL,
+    0x90befffa23631e28ULL, 0xa4506cebde82bde9ULL, 0xbef9a3f7b2c67915ULL, 0xc67178f2e372532bULL,
+    0xca273eceea26619cULL, 0xd186b8c721c0c207ULL, 0xeada7dd6cde0eb1eULL, 0xf57d4f7fee6ed178ULL,
+    0x06f067aa72176fbaULL, 0x0a637dc5a2c898a6ULL, 0x113f9804bef90daeULL, 0x1b710b35131c471bULL,
+    0x28db77f523047d84ULL, 0x32caab7b40c72493ULL, 0x3c9ebe0a15c9bebcULL, 0x431d67c49c100d4cULL,
+    0x4cc5d4becb3e42b6ULL, 0x597f299cfc657e2aULL, 0x5fcb6fab3ad6faecULL, 0x6c44198c4a475817ULL
+};
+
+#define rotr64(x, n) (((x) >> (n)) | ((x) << (64 - (n))))
+
+static void sha512_init(sha512_ctx *c)
+{
+    static const uint64_t IV[8] = {
+        0x6a09e667f3bcc908ULL, 0xbb67ae8584caa73bULL, 0x3c6ef372fe94f82bULL,
+        0xa54ff53a5f1d36f1ULL, 0x510e527fade682d1ULL, 0x9b05688c2b3e6c1fULL,
+        0x1f83d9abfb41bd6bULL, 0x5be0cd19137e2179ULL
+    };
+    memcpy(c->h, IV, sizeof IV);
+    c->total = 0;
+    c->bl = 0;
+}
+
+static void sha512_block(sha512_ctx *c, const uint8_t *p)
+{
+    uint64_t w[80], s[8], t1, t2;
+    int i;
+    for (i = 0; i < 16; i++) {
+        w[i] = ((uint64_t)p[8 * i] << 56) | ((uint64_t)p[8 * i + 1] << 48) |
+               ((uint64_t)p[8 * i + 2] << 40) | ((uint64_t)p[8 * i + 3] << 32) |
+               ((uint64_t)p[8 * i + 4] << 24) | ((uint64_t)p[8 * i + 5] << 16) |
+               ((uint64_t)p[8 * i + 6] << 8) | (uint64_t)p[8 * i + 7];
+    }
+    for (i = 16; i < 80; i++) {
+        uint64_t x = w[i - 15], y = w[i - 2];
+        uint64_t s0 = rotr64(x, 1) ^ rotr64(x, 8) ^ (x >> 7);
+        uint64_t s1 = rotr64(y, 19) ^ rotr64(y, 61) ^ (y >> 6);
+        w[i] = w[i - 16] + s0 + w[i - 7] + s1;
+    }
+    for (i = 0; i < 8; i++) s[i] = c->h[i];
+    for (i = 0; i < 80; i++) {
+        t1 = s[7] + (rotr64(s[4], 14) ^ rotr64(s[4], 18) ^ rotr64(s[4], 41))
+             + ((s[4] & s[5]) ^ ((~s[4]) & s[6])) + K512[i] + w[i];
+        t2 = (rotr64(s[0], 28) ^ rotr64(s[0], 34) ^ rotr64(s[0], 39))
+             + ((s[0] & s[1]) ^ (s[0] & s[2]) ^ (s[1] & s[2]));
+        s[7] = s[6]; s[6] = s[5]; s[5] = s[4]; s[4] = s[3] + t1;
+        s[3] = s[2]; s[2] = s[1]; s[1] = s[0]; s[0] = t1 + t2;
+    }
+    for (i = 0; i < 8; i++) c->h[i] += s[i];
+}
+
+static void sha512_update(sha512_ctx *c, const void *d, size_t n)
+{
+    const uint8_t *p = (const uint8_t *)d;
+    while (n--) {
+        c->buf[c->bl++] = *p++;
+        if (c->bl == 128) {
+            sha512_block(c, c->buf);
+            c->bl = 0;
+        }
+        c->total++;
+    }
+}
+
+static void sha512_final(sha512_ctx *c, uint8_t out[64])
+{
+    uint64_t bits = c->total * 8;
+    uint8_t pad = 0x80, z = 0, lenb[16];
+    int i;
+    sha512_update(c, &pad, 1);
+    while (c->bl != 112) sha512_update(c, &z, 1);
+    for (i = 0; i < 8; i++) {
+        lenb[7 - i] = 0;                            /* 128 位长度高 8 字节恒 0 */
+        lenb[15 - i] = (uint8_t)(bits >> (8 * i));  /* 低 8 字节 = 位数大端 */
+    }
+    sha512_update(c, lenb, 16);
+    for (i = 0; i < 8; i++) {
+        out[8 * i]     = (uint8_t)(c->h[i] >> 56);
+        out[8 * i + 1] = (uint8_t)(c->h[i] >> 48);
+        out[8 * i + 2] = (uint8_t)(c->h[i] >> 40);
+        out[8 * i + 3] = (uint8_t)(c->h[i] >> 32);
+        out[8 * i + 4] = (uint8_t)(c->h[i] >> 24);
+        out[8 * i + 5] = (uint8_t)(c->h[i] >> 16);
+        out[8 * i + 6] = (uint8_t)(c->h[i] >> 8);
+        out[8 * i + 7] = (uint8_t)(c->h[i]);
+    }
+}
+
+static void sha512_buf(const void *d, size_t n, uint8_t out[64])
+{
+    sha512_ctx c;
+    sha512_init(&c);
+    sha512_update(&c, d, n);
+    sha512_final(&c, out);
+}
+
 /* FIPS 180-4 向量自检（host/设备启动时调用一次）。0 = 通过。 */
 int sc_sha256_selftest(void)
 {
@@ -158,11 +277,22 @@ int sc_sha256_selftest(void)
                 0x99,0x6f,0xb9,0x24,0x27,0xae,0x41,0xe4,0x64,0x9b,0x93,0x4c,
                 0xa4,0x95,0x99,0x1b,0x78,0x52,0xb8,0x55 } }
     };
+    static const uint8_t V512_ABC[64] = { /* SHA-512("abc") */
+        0xdd,0xaf,0x35,0xa1,0x93,0x61,0x7a,0xba, 0xcc,0x41,0x73,0x49,0xae,0x20,0x41,0x31,
+        0x12,0xe6,0xfa,0x4e,0x89,0xa9,0x7e,0xa2, 0x0a,0x9e,0xee,0xe6,0x4b,0x55,0xd3,0x9a,
+        0x21,0x92,0x99,0x2a,0x27,0x4f,0xc1,0xa8, 0x36,0xba,0x3c,0x23,0xa3,0xfe,0xeb,0xbd,
+        0x45,0x4d,0x44,0x23,0x64,0x3c,0xe8,0x0e, 0x2a,0x9a,0xc9,0x4f,0xa5,0x4c,0xa4,0x9f
+    };
     size_t i;
     for (i = 0; i < sizeof V / sizeof V[0]; i++) {
         uint8_t out[32];
         sha256_buf(V[i].msg, strlen(V[i].msg), out);
         if (memcmp(out, V[i].h, 32) != 0) return -1;
+    }
+    {
+        uint8_t out[64];
+        sha512_buf("abc", 3, out);
+        if (memcmp(out, V512_ABC, 64) != 0) return -1;
     }
     return 0;
 }
@@ -284,20 +414,27 @@ static void bn_modexp_(uint32_t *res, const uint32_t *s, int sn,
     memcpy(res, acc, (size_t)mn * 4);
 }
 
-/* RSA PKCS#1 v1.5 + SHA-256 验签。sig/mod 均为大端字节。
+/* RSA PKCS#1 v1.5 验签（DigestInfo 前缀比对），覆盖 SHA-256 / SHA-512。
+ * use_sha512=0 → SHA-256，=1 → SHA-512。sig/mod 为大端字节，msg 为被签原文。
  * 返回 0 = 有效，-1 = 无效。 */
-static int rsa_sha256_pkcs1_verify(const uint8_t *sig, size_t siglen,
-                                   const uint8_t sha[32],
-                                   const uint8_t *mod_be, size_t mod_len,
-                                   uint32_t e)
+static int rsa_pkcs1_verify(const uint8_t *sig, size_t siglen,
+                            const uint8_t *msg, size_t msglen,
+                            const uint8_t *mod_be, size_t mod_len,
+                            uint32_t e, int use_sha512)
 {
-    /* DigestInfo(SHA-256) 前缀：SEQ(SEQ(OID 2.16.840.1.101.3.4.2.1), NULL) + OCTET(32) */
-    static const uint8_t DI[19] = {
+    /* DigestInfo 前缀：SEQ(SEQ(OID), NULL) + OCTET(散列长) */
+    static const uint8_t DI256[19] = {
         0x30, 0x31, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01,
         0x65, 0x03, 0x04, 0x02, 0x01, 0x05, 0x00, 0x04, 0x20
     };
+    static const uint8_t DI512[19] = {
+        0x30, 0x51, 0x30, 0x0d, 0x06, 0x09, 0x60, 0x86, 0x48, 0x01,
+        0x65, 0x03, 0x04, 0x02, 0x03, 0x05, 0x00, 0x04, 0x40
+    };
+    const uint8_t *di = use_sha512 ? DI512 : DI256;
+    const size_t hlen = use_sha512 ? 64u : 32u;
     uint32_t m[MAXM], s[MAXM], em[MAXM];
-    uint8_t emb[512];
+    uint8_t emb[512], h[64];
     size_t i;
     int mn;
 
@@ -310,17 +447,145 @@ static int rsa_sha256_pkcs1_verify(const uint8_t *sig, size_t siglen,
 
     bn_modexp_(em, s, mn, e, m, mn);
     bn_to_be_(em, mn, emb, mod_len);
+    if (use_sha512) sha512_buf(msg, msglen, h); else sha256_buf(msg, msglen, h);
 
     if (emb[0] != 0x00 || emb[1] != 0x01) return -1;
     i = 2;
     while (i < mod_len && emb[i] == 0xFF) i++;
     if (i - 2 < 8 || i >= mod_len || emb[i] != 0x00) return -1;
     i++;
-    if (mod_len - i != sizeof DI + 32) return -1;
-    if (memcmp(emb + i, DI, sizeof DI) != 0) return -1;
-    i += sizeof DI;
-    if (memcmp(emb + i, sha, 32) != 0) return -1;
+    if (mod_len - i != 19 + hlen) return -1;
+    if (memcmp(emb + i, di, 19) != 0) return -1;
+    i += 19;
+    if (memcmp(emb + i, h, hlen) != 0) return -1;
     return 0;
+}
+
+/* MGF1 掩码生成（RFC 8017 附录 B.2.1），散列与签名方案一致 */
+static void mgf1(const uint8_t *seed, size_t seedlen,
+                 uint8_t *out, size_t outlen, int use_sha512)
+{
+    const size_t hlen = use_sha512 ? 64u : 32u;
+    uint8_t ctr[4], h[64];
+    uint32_t counter = 0;
+    size_t done = 0;
+
+    while (done < outlen) {
+        size_t take = outlen - done;
+        if (take > hlen) take = hlen;
+        ctr[0] = (uint8_t)(counter >> 24);
+        ctr[1] = (uint8_t)(counter >> 16);
+        ctr[2] = (uint8_t)(counter >> 8);
+        ctr[3] = (uint8_t)counter;
+        if (use_sha512) {
+            sha512_ctx c;
+            sha512_init(&c);
+            sha512_update(&c, seed, seedlen);
+            sha512_update(&c, ctr, 4);
+            sha512_final(&c, h);
+        } else {
+            sha256_ctx c;
+            sha256_init(&c);
+            sha256_update(&c, seed, seedlen);
+            sha256_update(&c, ctr, 4);
+            sha256_final(&c, h);
+        }
+        memcpy(out + done, h, take);
+        done += take;
+        counter++;
+    }
+}
+
+/* RSASSA-PSS 验签（RFC 8017 §9.1.2 EMSA-PSS-VERIFY）：
+ * MGF1 同散列、trailer 0xBC、salt 长 ≤ hLen（apksigner/Android 用满长 hLen）。
+ * 返回 0 = 有效，-1 = 无效。 */
+static int rsa_pss_verify(const uint8_t *sig, size_t siglen,
+                          const uint8_t *msg, size_t msglen,
+                          const uint8_t *mod_be, size_t mod_len,
+                          uint32_t e, int use_sha512)
+{
+    const size_t hlen = use_sha512 ? 64u : 32u;
+    uint32_t m[MAXM], s[MAXM], em[MAXM];
+    uint8_t emb[512], mHash[64], h[64], hPrime[64], db[512];
+    size_t emLen, dbLen, i, saltLen;
+    int mn, modBits, emBits, zeroBits;
+
+    if (mod_len < 128 || mod_len > 512 || siglen != mod_len) return -1;
+    mn = (int)((mod_len + 3) / 4);
+
+    bn_from_be_(m, mn, mod_be, mod_len);
+    bn_from_be_(s, mn, sig, siglen);
+    if (!(m[0] & 1u)) return -1;             /* 模数必为奇数 */
+
+    bn_modexp_(em, s, mn, e, m, mn);
+    bn_to_be_(em, mn, emb, mod_len);
+    if (use_sha512) sha512_buf(msg, msglen, mHash);
+    else sha256_buf(msg, msglen, mHash);
+
+    /* emBits = modBits - 1，emLen = ceil(emBits / 8)。
+     * modBits = 模数实际位数：大端缓冲区 bit p（自 LSB 起）位于
+     * mod_be[mod_len - 1 - p / 8] 的第 p % 8 位。 */
+    modBits = (int)(mod_len * 8);
+    while (modBits > 0 &&
+           ((mod_be[mod_len - 1 - (size_t)(modBits - 1) / 8] >> ((modBits - 1) % 8)) & 1) == 0)
+        modBits--;
+    if (modBits < 9) return -1;
+    emBits = modBits - 1;
+    emLen = (size_t)((emBits + 7) / 8);
+    zeroBits = 8 * (int)emLen - emBits;
+    if (emLen > mod_len || emLen < hlen + 2) return -1;
+    for (i = 0; i < mod_len - emLen; i++)
+        if (emb[i] != 0) return -1;          /* I2OSP(m, emLen) 高位冗余必须为 0 */
+    {
+        const uint8_t *emBuf = emb + (mod_len - emLen);
+
+        if (emBuf[emLen - 1] != 0xbc) return -1;              /* trailer 固定 0xBC */
+        dbLen = emLen - hlen - 1;
+        if (dbLen > sizeof db) return -1;
+        if (zeroBits > 0 && (emBuf[0] >> (8 - zeroBits)) != 0) return -1;
+        memcpy(h, emBuf + dbLen, hlen);                        /* H = 右侧 hLen 字节 */
+        mgf1(h, hlen, db, dbLen, use_sha512);                  /* dbMask = MGF1(H) */
+        for (i = 0; i < dbLen; i++) db[i] ^= emBuf[i];         /* DB = maskedDB ^ dbMask */
+        if (zeroBits > 0) db[0] &= (uint8_t)(0xFF >> zeroBits);
+        /* DB = PS || 0x01 || salt：PS 全零 */
+        for (i = 0; i < dbLen; i++)
+            if (db[i] != 0x00) break;
+        if (i >= dbLen || db[i] != 0x01) return -1;
+        saltLen = dbLen - i - 1;
+        if (saltLen > hlen) return -1;
+        /* H' = Hash(0x00*8 || mHash || salt) */
+        {
+            static const uint8_t zeros[8] = { 0, 0, 0, 0, 0, 0, 0, 0 };
+            if (use_sha512) {
+                sha512_ctx c;
+                sha512_init(&c);
+                sha512_update(&c, zeros, 8);
+                sha512_update(&c, mHash, hlen);
+                if (saltLen) sha512_update(&c, db + i + 1, saltLen);
+                sha512_final(&c, hPrime);
+            } else {
+                sha256_ctx c;
+                sha256_init(&c);
+                sha256_update(&c, zeros, 8);
+                sha256_update(&c, mHash, hlen);
+                if (saltLen) sha256_update(&c, db + i + 1, saltLen);
+                sha256_final(&c, hPrime);
+            }
+        }
+        return memcmp(h, hPrime, hlen) == 0 ? 0 : -1;
+    }
+}
+
+/* 按方案号验签：0=PSS-SHA256，1=PSS-SHA512，2=PKCS1-SHA256，3=PKCS1-SHA512。
+ * 返回 0 = 有效，-1 = 无效。 */
+static int rsa_scheme_verify(int scheme, const uint8_t *sig, size_t siglen,
+                             const uint8_t *msg, size_t msglen,
+                             const uint8_t *mod_be, size_t mod_len, uint32_t e)
+{
+    int use512 = (scheme == 1 || scheme == 3);
+    if (scheme == 0 || scheme == 1)
+        return rsa_pss_verify(sig, siglen, msg, msglen, mod_be, mod_len, e, use512);
+    return rsa_pkcs1_verify(sig, siglen, msg, msglen, mod_be, mod_len, e, use512);
 }
 
 /* ============================================================
@@ -469,13 +734,15 @@ static int cert_subject_spki(const uint8_t *c, size_t clen, dv *spki)
 
 #define APK_SIG_BLOCK_MAGIC "APK Sig Block 42"
 #define V2_BLOCK_ID   0x7109871au
-/* 可接受的 RSA 签名条目：0x0101 = 规范的 PKCS#1 SHA-256。
- * 0x0103 规范定义为 PKCS#1 SHA-512，但实测生态内部分签名工具（含本 APK）
- * 以 0x0103 标注 SHA-256 签名；此处按密码学实质处理——签名内容仍由
- * DigestInfo OID 严格校验为 SHA-256，标签误标不影响绑定强度。
- * 0x0102(PSS)/真 SHA-512 条目不支持，返回 SC_E_NO_USABLE_SIG。 */
-#define SIG_ALG_RSA_PKCS1_SHA256 0x0101u
-#define SIG_ALG_RSA_PKCS1_SHA512_MISLABELED 0x0103u
+/* APK v2 RSA 签名条目 algId 权威映射（apksig/apksigner 字节码实证）：
+ *   0x0101 = RSASSA-PSS SHA-256（MGF1-SHA-256，32 字节 salt，trailer 0xbc）
+ *   0x0102 = RSASSA-PSS SHA-512（MGF1-SHA-512，64 字节 salt）
+ *   0x0103 = RSASSA-PKCS#1 v1.5 SHA-256（apksigner 默认，生态主流）
+ *   0x0104 = RSASSA-PKCS#1 v1.5 SHA-512 */
+#define SIG_ALG_RSA_PSS_SHA256   0x0101u
+#define SIG_ALG_RSA_PSS_SHA512   0x0102u
+#define SIG_ALG_RSA_PKCS1_SHA256 0x0103u
+#define SIG_ALG_RSA_PKCS1_SHA512 0x0104u
 #define DIGEST_ALG_CHUNKED_SHA256 0x0103u
 #define CHUNK_SIZE (1024u * 1024u)
 
@@ -521,25 +788,43 @@ static int find_chunked_sha256(const dv *digests, dv *out)
     return -1;
 }
 
-/* signatures 字段：若干 [len-prefixed [u32 algId][len-prefixed sig]]，取 RSA PKCS#1 条目 */
-static int find_rsa_pkcs1_sha256_sig(const dv *signatures, dv *out)
+/* signatures 字段：若干 [len-prefixed [u32 algId][len-prefixed sig]]。
+ * 遍历全部 RSA 条目（0x0101-0x0104），每条目按声明方案验签、失败后以其余
+ * 方案兜底（防签名工具误标 algId）。任一条目通过即通过。
+ * 返回 0 = 通过，-1 = RSA 条目全失败/结构畸形，1 = 无 RSA 条目。 */
+static int verify_signed_data_sig(const dv *signatures, const dv *msg,
+                                  const uint8_t *mod_be, size_t mod_len,
+                                  uint32_t e)
 {
     const uint8_t *cur = signatures->p, *end = signatures->p + signatures->len;
+    int saw_rsa = 0;
+
     while (cur < end) {
-        dv one;
+        dv one, d;
         uint32_t algId;
-        if (lp_next(&cur, end, &one) || one.len < 4) return -1;
+        int declared, k;
+        if (lp_next(&cur, end, &one) || one.len < 4) return -1;   /* 畸形 fail-closed */
         algId = rd_u32le(one.p);
-        if (algId == SIG_ALG_RSA_PKCS1_SHA256 ||
-            algId == SIG_ALG_RSA_PKCS1_SHA512_MISLABELED) {
+        switch (algId) {
+        case SIG_ALG_RSA_PSS_SHA256:   declared = 0; break;
+        case SIG_ALG_RSA_PSS_SHA512:   declared = 1; break;
+        case SIG_ALG_RSA_PKCS1_SHA256: declared = 2; break;
+        case SIG_ALG_RSA_PKCS1_SHA512: declared = 3; break;
+        default: continue;               /* EC/DSA/未知条目：无可用，跳过 */
+        }
+        {
             const uint8_t *icur = one.p + 4, *iend = one.p + one.len;
-            dv d;
             if (lp_next(&icur, iend, &d) || d.len == 0) return -1;
-            *out = d;
-            return 0;
+        }
+        saw_rsa = 1;
+        for (k = 0; k < 4; k++) {
+            /* 声明方案优先，其余三种兜底 */
+            if (rsa_scheme_verify((declared + k) % 4, d.p, d.len,
+                                  msg->p, msg->len, mod_be, mod_len, e) == 0)
+                return 0;
         }
     }
-    return -1;
+    return saw_rsa ? -1 : 1;
 }
 
 /* ============================================================
@@ -736,7 +1021,7 @@ int sc_verify_apk(const char *apk_path, const uint8_t expected_anchor[32],
         uint64_t cdSize, cdOff, blockLen, blockOff;
         uint8_t *block = NULL;
         dv v2, signers, signer, signedData, signatures, publicKey;
-        dv digests, certificates, cert0, dEntry, sEntry, mod;
+        dv digests, certificates, cert0, dEntry, mod;
         const uint8_t *cur, *end;
         uint8_t certSha[32];
         uint8_t contentDigest[32];
@@ -831,20 +1116,19 @@ int sc_verify_apk(const char *apk_path, const uint8_t expected_anchor[32],
             }
         }
 
-        /* ---- 验签：RSA PKCS#1 v1.5 (SHA-256) over signedData ---- */
-        if (find_rsa_pkcs1_sha256_sig(&signatures, &sEntry)) {
-            rc = SC_E_NO_USABLE_SIG;
-            d = "no RSA PKCS1 SHA-256 (0x0101) signature entry";
-            goto cleanup;
-        }
+        /* ---- 验签：signedData 上的 RSA 签名（PSS/PKCS#1 × SHA-256/512） ---- */
         if (parse_spki_rsa(publicKey.p, publicKey.len, &mod, &exp)) {
             rc = SC_E_NO_USABLE_SIG; d = "signer public key is not RSA"; goto cleanup;
         }
         {
-            uint8_t sha[32];
-            sha256_buf(signedData.p, signedData.len, sha);
-            if (rsa_sha256_pkcs1_verify(sEntry.p, sEntry.len, sha,
-                                        mod.p, mod.len, exp) != 0) {
+            int vr = verify_signed_data_sig(&signatures, &signedData,
+                                            mod.p, mod.len, exp);
+            if (vr > 0) {
+                rc = SC_E_NO_USABLE_SIG;
+                d = "no RSA signature entry (0x0101-0x0104)";
+                goto cleanup;
+            }
+            if (vr != 0) {
                 rc = SC_E_VERIFY_FAILED; d = "signed data signature invalid";
                 goto cleanup;
             }

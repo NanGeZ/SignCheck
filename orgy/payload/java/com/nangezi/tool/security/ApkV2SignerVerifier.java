@@ -197,17 +197,15 @@ public final class ApkV2SignerVerifier {
             return new Result(Status.VERIFY_FAILED, "public key does not match certificate", certSha);
         }
 
-        // ---- pick the signature matching the cert public key algorithm ----
-        byte[] signatureBytes = pickSignature(signatures, cert);
-        if (signatureBytes == null) {
-            return new Result(Status.PARSE_ERROR, "no usable signature for cert algorithm", certSha);
+        // ---- verify signed-data signature (all RSA entries, multi-scheme) ----
+        if (!"RSA".equals(cert.getPublicKey().getAlgorithm())) {
+            return new Result(Status.VERIFY_FAILED, "non-RSA signing key not supported", certSha);
         }
-
-        // ---- verify signed-data signature ----
-        Signature sig = Signature.getInstance(mapSigAlg(cert));
-        sig.initVerify(cert.getPublicKey());
-        sig.update(signedDataBytes);
-        if (!sig.verify(signatureBytes)) {
+        int vs = verifySignedDataSig(signatures, signedDataBytes, cert.getPublicKey());
+        if (vs == 1) {
+            return new Result(Status.VERIFY_FAILED, "no RSA signature entry (0x0101-0x0104)", certSha);
+        }
+        if (vs != 0) {
             return new Result(Status.VERIFY_FAILED, "signed data signature invalid", certSha);
         }
 
@@ -238,42 +236,147 @@ public final class ApkV2SignerVerifier {
 
     // ---- signatures field content = concat of length-prefixed entries, entry = u32 algId + length-prefixed signature ----
 
-    private static byte[] pickSignature(ByteBuffer signatures, X509Certificate cert) {
-        String keyAlg = cert.getPublicKey().getAlgorithm(); // "RSA" / "EC" / "DSA"
+    private static final int SCHEME_PSS_SHA256 = 0;
+    private static final int SCHEME_PSS_SHA512 = 1;
+    private static final int SCHEME_PKCS1_SHA256 = 2;
+    private static final int SCHEME_PKCS1_SHA512 = 3;
+
+    private static int schemeOfAlgId(int algId) {
+        switch (algId) {
+            case 0x0101: return SCHEME_PSS_SHA256;
+            case 0x0102: return SCHEME_PSS_SHA512;
+            case 0x0103: return SCHEME_PKCS1_SHA256;
+            case 0x0104: return SCHEME_PKCS1_SHA512;
+            default: return -1; // EC/DSA/unknown
+        }
+    }
+
+    /**
+     * Verify the signed-data signature. Every RSA entry (0x0101-0x0104) is tried with
+     * its declared scheme first, then the remaining schemes as fallback (guards against
+     * tools that mislabel the algorithm id). Mirrors native verify_signed_data_sig.
+     * @return 0 = valid, -1 = all RSA entries failed / malformed, 1 = no RSA entry
+     */
+    private static int verifySignedDataSig(ByteBuffer signatures, byte[] msg, java.security.PublicKey key) {
         ByteBuffer list = signatures.duplicate();
+        boolean sawRsa = false;
         while (list.hasRemaining()) {
             ByteBuffer one = readLengthPrefixedSlice(list);
             if (one == null || one.remaining() < 4) {
-                return null;
+                return -1; // malformed -> fail closed
             }
-            int algId = one.getInt();
+            int declared = schemeOfAlgId(one.getInt());
             ByteBuffer sigSlice = readLengthPrefixedSlice(one);
-            if (sigSlice == null) {
-                return null;
+            if (declared < 0) {
+                continue; // non-RSA entry: not usable here
             }
+            if (sigSlice == null) {
+                return -1;
+            }
+            sawRsa = true;
             byte[] sigBytes = new byte[sigSlice.remaining()];
             sigSlice.get(sigBytes);
-            boolean match = ("RSA".equals(keyAlg) && (algId == 0x0101 || algId == 0x0102 || algId == 0x0103 || algId == 0x0104))
-                    || ("EC".equals(keyAlg) && (algId == 0x0201 || algId == 0x0202 || algId == 0x0203))
-                    || ("DSA".equals(keyAlg) && algId == 0x0103);
-            if (match) {
-                return sigBytes;
+            for (int k = 0; k < 4; k++) {
+                if (rsaSchemeVerify((declared + k) % 4, sigBytes, msg, key)) {
+                    return 0;
+                }
             }
         }
-        return null;
+        return sawRsa ? -1 : 1;
     }
 
-    private static String mapSigAlg(X509Certificate cert) {
-        switch (cert.getPublicKey().getAlgorithm()) {
-            case "RSA":
-                return "SHA256withRSA";
-            case "EC":
-                return "SHA256withECDSA";
-            case "DSA":
-                return "SHA256withDSA";
-            default:
-                throw new IllegalStateException("unsupported key algorithm");
+    /** One scheme verify: 0=PSS-SHA256, 1=PSS-SHA512, 2=PKCS#1-SHA256, 3=PKCS#1-SHA512. */
+    private static boolean rsaSchemeVerify(int scheme, byte[] sig, byte[] msg, java.security.PublicKey key) {
+        try {
+            if (scheme == SCHEME_PKCS1_SHA256 || scheme == SCHEME_PKCS1_SHA512) {
+                Signature s = Signature.getInstance(
+                        scheme == SCHEME_PKCS1_SHA256 ? "SHA256withRSA" : "SHA512withRSA");
+                s.initVerify(key);
+                s.update(msg);
+                return s.verify(sig);
+            }
+            // PSS: JCA RSASSA-PSS parameter handling varies across providers, so do the
+            // EMSA-PSS-VERIFY manually over a raw RSA public operation (mirrors native).
+            javax.crypto.Cipher c = javax.crypto.Cipher.getInstance("RSA/ECB/NoPadding");
+            c.init(javax.crypto.Cipher.DECRYPT_MODE, key);
+            byte[] emb = c.doFinal(sig);
+            int modBits = ((java.security.interfaces.RSAPublicKey) key).getModulus().bitLength();
+            return pssVerify(emb, modBits, msg, scheme == SCHEME_PSS_SHA256 ? "SHA-256" : "SHA-512");
+        } catch (Exception e) {
+            return false;
         }
+    }
+
+    /** EMSA-PSS-VERIFY (RFC 8017 §9.1.2): trailer 0xbc, MGF1 same hash, salt <= hLen.
+     *  emBits = modBits - 1, emLen = ceil(emBits / 8) — mirrors native rsa_pss_verify. */
+    private static boolean pssVerify(byte[] emb, int modBits, byte[] msg, String mdName) throws Exception {
+        MessageDigest md = MessageDigest.getInstance(mdName);
+        int hLen = md.getDigestLength();
+        int emBits = modBits - 1;
+        int emLen = (emBits + 7) / 8;
+        int zeroBits = 8 * emLen - emBits;
+        if (modBits < 9 || emLen > emb.length || emLen < hLen + 2) {
+            return false;
+        }
+        byte[] em = java.util.Arrays.copyOfRange(emb, emb.length - emLen, emb.length); // I2OSP: high bytes must be 0
+        for (int i = 0; i < emb.length - emLen; i++) {
+            if (emb[i] != 0) {
+                return false;
+            }
+        }
+        if (em[emLen - 1] != (byte) 0xBC) {
+            return false;
+        }
+        int dbLen = emLen - hLen - 1;
+        if (zeroBits > 0 && ((em[0] & 0xFF) >> (8 - zeroBits)) != 0) {
+            return false;
+        }
+        byte[] h = java.util.Arrays.copyOfRange(em, dbLen, dbLen + hLen);
+        byte[] dbMask = mgf1(h, dbLen, mdName);
+        byte[] db = new byte[dbLen];
+        for (int i = 0; i < dbLen; i++) {
+            db[i] = (byte) (em[i] ^ dbMask[i]);
+        }
+        if (zeroBits > 0) {
+            db[0] &= (byte) (0xFF >> zeroBits);
+        }
+        // DB = PS(0x00...) || 0x01 || salt
+        int sep = 0;
+        while (sep < dbLen && db[sep] == 0) {
+            sep++;
+        }
+        if (sep >= dbLen || db[sep] != 0x01) {
+            return false;
+        }
+        int saltLen = dbLen - sep - 1;
+        if (saltLen > hLen) {
+            return false;
+        }
+        byte[] mHash = md.digest(msg);
+        md.update(new byte[8]);
+        md.update(mHash);
+        if (saltLen > 0) {
+            md.update(db, sep + 1, saltLen);
+        }
+        return MessageDigest.isEqual(h, md.digest());
+    }
+
+    /** MGF1 (RFC 8017 appendix B.2.1), counter big-endian, same hash as the scheme. */
+    private static byte[] mgf1(byte[] seed, int outLen, String mdName) throws Exception {
+        MessageDigest md = MessageDigest.getInstance(mdName);
+        int hLen = md.getDigestLength();
+        byte[] out = new byte[outLen];
+        int off = 0;
+        for (int ctr = 0; off < outLen; ctr++) {
+            md.reset();
+            md.update(seed);
+            md.update(new byte[]{(byte) (ctr >>> 24), (byte) (ctr >>> 16), (byte) (ctr >>> 8), (byte) ctr});
+            byte[] d = md.digest();
+            int n = Math.min(hLen, outLen - off);
+            System.arraycopy(d, 0, out, off, n);
+            off += n;
+        }
+        return out;
     }
 
     // ---- digests field content = concat of length-prefixed entries, entry = u32 algId + length-prefixed digest ----

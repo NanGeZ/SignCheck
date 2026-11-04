@@ -46,8 +46,22 @@ public final class SignGate {
     private static final AtomicBoolean sJavaTrusted = new AtomicBoolean(false);
     private static volatile long sLastCheckMs = 0L;
     private static volatile boolean sStarted = false;
+    /** AppProxy 完成签名校验后置位；决定原 Application 的 factory 实例化是否放行。
+     *  放在 SignGate 而非 AppProxyFactory：AppProxyFactory 继承 AppComponentFactory
+     *  （API 28+ 才有），API 26/27 上 AppProxy 引用它会 NoClassDefFoundError。 */
+    private static volatile boolean sVerified = false;
 
     private SignGate() {}
+
+    /** 由 AppProxy 在 checkOrDie() 通过后调用。 */
+    static void markVerified() {
+        sVerified = true;
+    }
+
+    /** AppProxyFactory 判定原 Application 是否可被实例化。 */
+    static boolean isVerified() {
+        return sVerified;
+    }
 
     /* ============ 入口 A：Application.onCreate / attachBaseContext ============ */
     public static void checkOrDie(Context ctx) {

@@ -77,6 +77,25 @@ public final class ApkInjector {
         V2SignBlock.Info info = V2SignBlock.parse(apk);
         log.log("签名方案：" + info.schemeText());
 
+        // ---- 0. 仅接受 RSA 签名目标（运行时校验器只实现 RSA 四方案验签）----
+        if (info.certDer == null || info.rsaSigAlgId < 0) {
+            throw new IOException("仅接受 RSA 签名的 APK：v2 签名需含 RSA 签名条目（0x0101-0x0104），"
+                    + "EC/DSA 签名注入后无法通过运行时校验");
+        }
+        try {
+            java.security.cert.X509Certificate xc = (java.security.cert.X509Certificate)
+                    java.security.cert.CertificateFactory.getInstance("X.509")
+                            .generateCertificate(new java.io.ByteArrayInputStream(info.certDer));
+            if (!"RSA".equals(xc.getPublicKey().getAlgorithm())) {
+                throw new IOException("仅接受 RSA 签名的 APK：证书公钥算法为 "
+                        + xc.getPublicKey().getAlgorithm());
+            }
+        } catch (IOException e) {
+            throw e;
+        } catch (Exception e) {
+            throw new IOException("签名证书解析失败：" + e);
+        }
+
         // ---- 1. 信任锚 ----
         byte[] anchor;
         if (anchorHex != null && !anchorHex.isEmpty()) {

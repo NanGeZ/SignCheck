@@ -10,13 +10,16 @@
  *  - g_last_status 在 native 侧保存权威结果，防止 Java 层静态变量被篡改后蒙混。
  *
  * 已知边界（详见 README）：
- *  - 仅支持 RSA PKCS#1 v1.5 + SHA-256 签名条目 (0x0101)，即 apksigner 默认输出；
- *    PSS(0x0102)/SHA-512(0x0103)/SHA-384(0x0104) 返回 SC_E_NO_USABLE_SIG。
+ *  - 仅支持 RSA PKCS#1 v1.5 + SHA-256 签名条目：接受 0x0101（规范算法）与 0x0103
+ *    （规范定义 SHA-512，但生态签名工具广泛误标为 SHA-256，实测确为 SHA-256 签名；
+ *    以 DigestInfo OID 严格校验密码学实质，拒绝任何非 SHA-256 摘要）。
+ *    PSS(0x0102)/SHA-384(0x0104) 返回 SC_E_NO_USABLE_SIG。
  *  - 仅支持 ≤4096-bit RSA 模数；公钥指数需 ≤ 0xFFFFFFFF（65537 均满足）。
  *  - ZIP 偏移量为 u32，不支持 >4GB APK。
  */
 
 #define _FILE_OFFSET_BITS 64
+#define _POSIX_C_SOURCE 200809L /* 保证严格 -std=c11 下 pread/ssize_t 声明可见 */
 
 #include "signcheck_core.h"
 

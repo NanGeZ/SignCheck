@@ -408,6 +408,7 @@ if (r.status != ApkV2SignerVerifier.Status.PASS) {
 - **fail closed**：任何 FAIL/矛盾直接杀进程，不做可被 Hook 吞掉的弹窗
 - **host 真值对照**：NGTool APK 正向 `SC_OK`（60ms），7/7 用例（重签/单字节篡改/CD 篡改/EOCD 破坏/锚点单侧篡改）全部按预期拦截
 - **新增实现陷阱记录**：DER TLV 头长 = `2+nb`；嵌套 DER 遍历进入内容区必须重置 cur；模幂 square-and-multiply 第一处误写 `acc×base`（须用小模数差分测试检出，弱自检无效）；NGTool 签名条目 algId=0x0103 实测为 SHA-256（生态工具与内容摘要 ID 混淆），native 按 DigestInfo OID 密码学实质处理
+- **交叉编译与 NDK 验证**（后续补充轮）：aarch64 严格 c11 零告警 + qemu-user 全量 7/7 与 host 结果一致；真实 NDK r27c 构建三 ABI（arm64-v8a/armeabi-v7a/x86_64）成功，DT_NEEDED 仅 bionic 三件套、ELF note API=21、导出符号仅 3 个 JNI 入口；产物预置于 `native/prebuilt/<abi>/libsigncheck.so` 可直接放 jniLibs。新增陷阱：严格 c11 下需显式 `_POSIX_C_SOURCE 200809L`（pread 声明）；CMake 禁止重定义 JNIEXPORT/JNICALL（NDK jni.h 自带，冲突即 redefinition）；ndk-build 子模块 `all-subdir-makefiles` 必须置于主模块定义之后
 
 ---
 

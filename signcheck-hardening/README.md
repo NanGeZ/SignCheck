@@ -70,6 +70,8 @@ signcheck-hardening/
 │   ├── jni/SignCheck_native.c   JNI 桥（改包名需同步改函数名）
 │   ├── CMakeLists.txt           NDK 构建（externalNativeBuild）
 │   ├── Android.mk               ndk-build 备选
+│   ├── prebuilt/<abi>/libsigncheck.so   NDK r27c 实测构建产物（arm64-v8a /
+│   │                            armeabi-v7a / x86_64，minSdk 21，可直接放 jniLibs）
 │   └── host/main.c              host 测试 harness（真值对照用，不打包）
 ├── java/com/nangezi/tool/security/
 │   ├── SignCheck.java           JNI 桥封装 + Java 侧锚点（A^B 分拆）
@@ -100,6 +102,9 @@ android {
 ```
 
 `ANDROID_STL=none`：core 为纯 C，无 STL 依赖，最小 so 体积（约 15KB）。
+
+不想配构建链时可直接用 `native/prebuilt/<abi>/libsigncheck.so` 放进
+`app/src/main/jniLibs/<abi>/`（NDK r27c、minSdk 21 构建；换证书/改代码后请重新源码构建）。
 
 ### 4.2 Java 包名调整
 
@@ -155,7 +160,7 @@ public void doCriticalWork() {
 混淆说明：`SignCheck` 的 native 方法名不能混淆（JNI 绑定）；其余类可混淆。
 建议同时开启 R8 全模式 + 资源混淆，抬高对 Java 层的静态分析成本。
 
-## 5. 已完成的真值对照测试（host，gcc -O2）
+## 5. 已完成的真值对照测试（host x86_64 + ARM64 交叉 + NDK）
 
 测试对象：NGTool-2.1.0-release_by nangezi.apk（9,807,270 字节，v1+v2）
 
@@ -174,6 +179,36 @@ bignum 差分测试（128-bit 模数，3 组随机数，Python 参考值）：`s
 
 Java 侧第二实现已在上一阶段于同一 APK 全链 `PASS`，与 native 结果互为真值。
 
+### 5.1 ARM64 交叉编译与模拟器验证
+
+- 工具链：`aarch64-linux-gnu-gcc 13.2`，严格 `std=c11 -O2 -Wall -Wextra`，**零告警**。
+- `qemu-user` 上以真包跑同一套 7 用例（T1–T7），结果与 host x86_64 **完全一致**：
+  `0 / 6 / 6 / 3 / 3 / 4 / 6`，7/7 PASS。
+- 符号面验证：aarch64 `.so` 动态导出符号**只有 3 个** `Java_com_nangezi_tool_security_SignCheck_native*`，
+  全部 `sc_*` 内部符号被 `-fvisibility=hidden` 隐藏（外部无法 `dlsym` 调 `sc_verify_apk` 喂假锚）。
+- 移植性修正：严格 c11 模式下部分 libc 头会隐藏 `pread` 声明，已在 core 顶部显式
+  `#define _POSIX_C_SOURCE 200809L`（bionic 本就不隐藏，加宏为防御性写法）。
+- NDK 真构建见 5.2。
+
+### 5.2 NDK 构建验证（bionic）
+
+沙箱内下载真实 Android NDK r27c 完成构建验证（`APP_PLATFORM=android-21`，`APP_STL=none`）：
+
+| ABI | 产物 | DT_NEEDED | ELF note | 动态导出符号 |
+|---|---|---|---|---|
+| arm64-v8a | 17KB stripped | `libc.so libm.so libdl.so` | API level 21 / r27c | 仅 3 个 `Java_..._SignCheck_native*` |
+| armeabi-v7a | 12.6KB stripped | 同上 | 同上 | 同上 |
+| x86_64 | 19KB stripped | 同上 | 同上 | 同上 |
+
+- 三 ABI 零告警通过；32 位 armeabi-v7a 验证了 `_FILE_OFFSET_BITS=64` 的
+  `off_t` 扩宽路径（core 顶部自带该宏，32 位大 APK 的 pread 正确性依赖它）。
+- NEEDED 仅为 bionic 基础三件套，无 STL/无 libc++_shared——集成后不会引入
+  额外 so 依赖；`sc_*` 内部符号全部隐藏，导出面与设计一致。
+- 功能性 7/7 用例已在 5.1 以同源码 ARM64 + qemu 验证（bionic 二进制无法在
+  无 Android 运行时的沙箱执行，静态验证 + 同源功能验证构成完整证据链）。
+- 构建产物保留在 `native/prebuilt/<abi>/libsigncheck.so`，可直接放 jniLibs 使用；
+  换证书或改源码后用 CMake/ndk-build 重出。
+
 ## 6. 调试中修复的实现陷阱（复现实验清单 6.2 的补充）
 
 1. **DER TLV 起始指针**：长形式头长 = `2 + nb`（tag + 0x8x + nb 个长度字节），
@@ -188,6 +223,10 @@ Java 侧第二实现已在上一阶段于同一 APK 全链 `PASS`，与 native �
    但实测（Java 三算法对照）实为 SHA-256 PKCS#1——生态内部分签名工具将
    0x0103 与内容摘要 ID 0x0103(CHUNKED_SHA256) 混淆。native 按密码学实质处理：
    接受 0x0101/0x0103 条目，DigestInfo OID 严格校验为 SHA-256；标签误标不影响绑定强度。
+5. **CMake 不要重定义 JNIEXPORT/JNICALL**：NDK 的 `jni.h` 自带
+   `JNIEXPORT = __attribute__((visibility("default")))`，构建脚本里再
+   `target_compile_definitions` 重定义会触发 macro redefinition 冲突；
+   `-fvisibility=hidden` + 头文件自带宏的组合已保证"只导出 JNI 入口"。
 
 ## 7. 已知边界与对抗升级路线
 

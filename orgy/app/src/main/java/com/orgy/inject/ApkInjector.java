@@ -176,7 +176,7 @@ public final class ApkInjector {
         return next == 1 ? "classes.dex" : "classes" + next + ".dex";
     }
 
-    static byte[] readEntry(File apk, String name) throws IOException {
+    public static byte[] readEntry(File apk, String name) throws IOException {
         try (ZipFile zf = new ZipFile(apk)) {
             ZipEntry e = zf.getEntry(name);
             if (e == null) return null;

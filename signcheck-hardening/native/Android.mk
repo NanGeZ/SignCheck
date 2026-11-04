@@ -1,0 +1,8 @@
+LOCAL_PATH := $(call my-dir)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE            := signcheck
+LOCAL_SRC_FILES         := signcheck_core.c jni/SignCheck_native.c
+LOCAL_CFLAGS            := -O2 -Wall -Wextra -fvisibility=hidden -fstack-protector-strong
+LOCAL_LDFLAGS           := -Wl,--gc-sections
+include $(BUILD_SHARED_LIBRARY)

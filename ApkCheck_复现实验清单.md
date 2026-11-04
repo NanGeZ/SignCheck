@@ -398,6 +398,17 @@ if (r.status != ApkV2SignerVerifier.Status.PASS) {
 - **实测证据**：原包 `PASS`（验签 + 内容摘要 + 证书指纹全通过）；翻转任意 1 字节 → `VERIFY_FAILED: APK content digest mismatch (tampered)`
 - **补强建议**：配合样本 Other 类思路做 maps/inode 交叉防 IO 重定向；期望值不一致时静默降级比崩溃更难被破解者定位，但需有远端上报
 
+### 6.4 工程化落地：NGTool 加固包（NDK 信任锚副本 + 多入口交叉验证）
+
+6.1–6.3 的单实现已升级为完整加固方案，交付于 [signcheck-hardening/](computer:///workspace/signcheck-hardening/README.md)：
+
+- **四通道交叉**：① native 独立实现（自带 SHA-256/bignum RSA/DER，不经 JVM）② Java 第二实现（6.2 的 ApkV2SignerVerifier）③ PackageManager 常规通道 ④ 裸 Binder 直连 PMS（对应样本 `Sign(Binder)` 的防御侧）
+- **信任锚三处存放**：Java XOR 分拆（A^B）+ native so 内 XOR 分拆，verify 时四方一致性强制比对，单侧篡改即 `SC_E_ANCHOR_MISMATCH`
+- **四个接入入口**：Application/attachBaseContext、Activity.onCreate、周期线程（默认 5 分钟）、业务入口轻量 enforce + so 内状态权威副本交叉（防只改 Java 静态变量）
+- **fail closed**：任何 FAIL/矛盾直接杀进程，不做可被 Hook 吞掉的弹窗
+- **host 真值对照**：NGTool APK 正向 `SC_OK`（60ms），7/7 用例（重签/单字节篡改/CD 篡改/EOCD 破坏/锚点单侧篡改）全部按预期拦截
+- **新增实现陷阱记录**：DER TLV 头长 = `2+nb`；嵌套 DER 遍历进入内容区必须重置 cur；模幂 square-and-multiply 第一处误写 `acc×base`（须用小模数差分测试检出，弱自检无效）；NGTool 签名条目 algId=0x0103 实测为 SHA-256（生态工具与内容摘要 ID 混淆），native 按 DigestInfo OID 密码学实质处理
+
 ---
 
 ## 7. 注意事项

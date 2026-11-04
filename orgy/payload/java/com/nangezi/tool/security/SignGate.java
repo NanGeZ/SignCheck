@@ -55,6 +55,11 @@ public final class SignGate {
         verify(ctx);
     }
 
+    /** 是否已完成至少一次全量校验（供 GuardProvider 判定走便宜复查还是全量）。 */
+    public static boolean alreadyVerified() {
+        return sNativeStatus.get() != Integer.MIN_VALUE;
+    }
+
     /* ============ 入口 B/D：Activity.onCreate / 业务入口 ============ */
     public static void enforce(Context ctx) {
         int cached = sNativeStatus.get();
@@ -166,8 +171,9 @@ public final class SignGate {
     /**
      * fail closed：直接终止进程。
      * 可选增强：在此处接入你自己的上报/本地留痕（勿依赖网络是否成功）。
+     * （同包可见：AppProxyFactory 在无 Context 的截胡场景下也要能 fail closed。）
      */
-    private static void failClosed(String reason) {
+    static void failClosed(String reason) {
         try { Log.e(TAG, "SIGN CHECK FAILED, killing process: " + reason); } catch (Throwable ignore) { }
         Process.killProcess(Process.myPid());
         System.exit(10);

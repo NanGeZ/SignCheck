@@ -30,6 +30,7 @@ public final class AppProxy extends Application {
     protected void attachBaseContext(Context base) {
         super.attachBaseContext(base);
         SignGate.checkOrDie(base);          // fail closed：不通过直接杀进程
+        AppProxyFactory.markVerified();     // 放行原 Application 的 factory 实例化路径
         String name = SignCheck.origApplicationName();
         if (name != null) {
             try {

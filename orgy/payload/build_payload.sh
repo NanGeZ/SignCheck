@@ -5,6 +5,9 @@
 #   /workspace/orgy/app/src/main/assets/payload/classes.dex
 #   /workspace/orgy/app/src/main/assets/payload/libsigncheck-<abi>.so
 #
+# SKIP_SO=1 时跳过 ndk-build 与 so 拷贝（native 未改动时使用；so 自检仍对
+# 现有 assets 产物执行）。
+#
 # 构建后自动校验占位符在产物中【各恰好出现一次】（同长替换补丁的前提）。
 set -euo pipefail
 
@@ -29,18 +32,25 @@ find "$PAYLOAD/java" -name '*.java' > "$OUT/sources.txt"
 echo "== [2/4] d8 -> classes.dex =="
 "$BT/d8" --lib "$ANDROID_JAR" --min-api 21 --output "$OUT/dex" $(find "$OUT/classes" -name '*.class')
 
-echo "== [3/4] ndk-build -> libsigncheck.so (arm64-v8a armeabi-v7a x86_64) =="
-cd "$PAYLOAD/native"
-"$NDK/ndk-build" NDK_PROJECT_PATH="$PAYLOAD/native" \
-    APP_BUILD_SCRIPT="$PAYLOAD/native/Android.mk" \
-    NDK_APPLICATION_MK="$PAYLOAD/native/Application.mk" \
-    NDK_OUT="$OUT/obj" NDK_LIBS_OUT="$OUT/libs" -j"$(nproc)"
+if [ "${SKIP_SO:-0}" = "1" ]; then
+    echo "== [3/4] ndk-build 跳过（SKIP_SO=1，沿用现有 so 产物） =="
+else
+    echo "== [3/4] ndk-build -> libsigncheck.so (arm64-v8a armeabi-v7a x86_64) =="
+    cd "$PAYLOAD/native"
+    "$NDK/ndk-build" NDK_PROJECT_PATH="$PAYLOAD/native" \
+        APP_BUILD_SCRIPT="$PAYLOAD/native/Android.mk" \
+        NDK_APPLICATION_MK="$PAYLOAD/native/Application.mk" \
+        NDK_OUT="$OUT/obj" NDK_LIBS_OUT="$OUT/libs" -j"$(nproc)"
+    cd "$PAYLOAD"
+fi
 
 echo "== [4/4] 拷贝产物 + 占位符自检 =="
 cp "$OUT/dex/classes.dex" "$ASSETS/classes.dex"
-for abi in arm64-v8a armeabi-v7a x86_64; do
-    cp "$OUT/libs/$abi/libsigncheck.so" "$ASSETS/libsigncheck-$abi.so"
-done
+if [ "${SKIP_SO:-0}" != "1" ]; then
+    for abi in arm64-v8a armeabi-v7a x86_64; do
+        cp "$OUT/libs/$abi/libsigncheck.so" "$ASSETS/libsigncheck-$abi.so"
+    done
+fi
 
 python3 - "$ASSETS" <<'PYEOF'
 import sys, pathlib
@@ -48,11 +58,12 @@ assets = pathlib.Path(sys.argv[1])
 DEX_A = b"ORGYDEXANCHORA" + b"0" * 50          # 64 字符 hex 占位
 DEX_B = b"ORGYDEXANCHORB" + b"0" * 50
 ORIG  = b"ORGYORIGAPPNAME" + b"\x01" * 113     # 128 字符占位（MUTF-8 同 ASCII）
+FAC   = b"ORGYORIGFACTORY" + b"\x01" * 113     # 128 字符占位
 SO_A  = b"ORGYSOANCHORA" + b"0" * 19           # 32 字节 so 锚占位
 SO_B  = b"ORGYSOANCHORB" + b"0" * 19
 ok = True
 dex = (assets / "classes.dex").read_bytes()
-for name, pat in (("DEX_A", DEX_A), ("DEX_B", DEX_B), ("ORIG_APP", ORIG)):
+for name, pat in (("DEX_A", DEX_A), ("DEX_B", DEX_B), ("ORIG_APP", ORIG), ("ORIG_FACTORY", FAC)):
     c = dex.count(pat)
     print(f"classes.dex {name}: count={c} len={len(pat)}")
     ok &= (c == 1)

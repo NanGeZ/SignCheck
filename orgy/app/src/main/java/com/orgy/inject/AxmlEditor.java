@@ -31,6 +31,7 @@ public final class AxmlEditor {
     private static final int RES_XML_START_NAMESPACE = 0x0100;
     private static final int RES_XML_END_NAMESPACE = 0x0101;
     private static final int RES_XML_START_ELEMENT = 0x0102;
+    private static final int RES_XML_END_ELEMENT = 0x0103;
     private static final int RES_XML_RESOURCE_MAP = 0x0180;
 
     private static final int UTF8_FLAG = 0x100;
@@ -42,6 +43,10 @@ public final class AxmlEditor {
         public String versionName;
         /** <application android:name>，相对名已还原为全限定名；无则 null。 */
         public String applicationName;
+        /** <application android:appComponentFactory>（全限定名）；无则 null。 */
+        public String componentFactoryName;
+        /** 全部 <provider android:name>（全限定名，可能含 null 项）。 */
+        public final List<String> providerNames = new ArrayList<>();
     }
 
     private byte[] data;
@@ -129,7 +134,10 @@ public final class AxmlEditor {
         if (appOff >= 0) {
             String n = attrValue(appChunkAsEl(), androidNsIdx(), "name");
             if (n != null) info.applicationName = resolveClassName(info.packageName, n);
+            String f = attrValue(appChunkAsEl(), androidNsIdx(), "appComponentFactory");
+            if (f != null) info.componentFactoryName = resolveClassName(info.packageName, f);
         }
+        info.providerNames.addAll(elementAttrValues("provider", androidNsIdx(), "name", info.packageName));
         return info;
     }
 
@@ -145,10 +153,24 @@ public final class AxmlEditor {
 
     /** 设置 <application android:name="cls">（绝对类名）。 */
     public void setApplicationName(String cls) {
+        setApplicationAttr("name", 0x01010003, cls);          /* android.R.attr.name */
+    }
+
+    /**
+     * 设置 <application android:appComponentFactory="cls">（绝对类名）。
+     * 已有属性直接替换值；否则新增属性（resid 0x0101057a）。
+     * 用于把目标自定义 AppComponentFactory（加固/监控 SDK 常见的截胡点）替换为
+     * Orgy 的 AppProxyFactory。
+     */
+    public void setApplicationComponentFactory(String cls) {
+        setApplicationAttr("appComponentFactory", 0x0101057A, cls);   /* android.R.attr.appComponentFactory */
+    }
+
+    private void setApplicationAttr(String attrName, int resid, String value) {
         if (appOff < 0) throw new IllegalStateException("Manifest 无 <application> 元素");
-        int valueIdx = appendString(cls);
+        int valueIdx = appendString(value);
         int[] el = appChunkAsEl();
-        int attrIdx = findAttrIndex(el, androidNsIdx(), "name");
+        int attrIdx = findAttrIndex(el, androidNsIdx(), attrName);
         if (attrIdx >= 0) {
             /* 替换值：rawValue 与 typedValue.data 同指 valueIdx，TYPE_STRING(0x03) */
             int e = attrEntryOff(attrIdx);
@@ -159,8 +181,8 @@ public final class AxmlEditor {
             w32(e + 16, valueIdx);
         } else {
             /* 新增属性：末尾追加 20 字节 */
-            int nameIdx = appendString("name");
-            ensureResmapEntry(nameIdx, 0x01010003);   /* android.R.attr.name */
+            int nameIdx = appendString(attrName);
+            ensureResmapEntry(nameIdx, resid);
             int ins = attrEntryOff(appAttrCount);
             insertBytes(ins, buildAttr(androidNsIdx(), nameIdx, valueIdx));
             appSize += 20;
@@ -168,6 +190,50 @@ public final class AxmlEditor {
             w16(appOff + 28, appAttrCount);
             w32(appOff + 4, appSize);
         }
+    }
+
+    /**
+     * 在 <application> 下插入
+     * <pre>&lt;provider android:name="className" android:authorities="authorities"
+     *     android:exported="false"/&gt;</pre>
+     * （作为第一个子元素插入，元素顺序对 manifest 语义无影响）。
+     * 用作校验双保险的挂点（ContentProvider.onCreate 早于 Application.onCreate）。
+     */
+    public void insertProvider(String className, String authorities) {
+        if (appOff < 0) throw new IllegalStateException("Manifest 无 <application> 元素");
+        int androidNs = androidNsIdx();
+        int elNameIdx = appendString("provider");
+        int nameIdx = appendString("name");
+        ensureResmapEntry(nameIdx, 0x01010003);
+        int authNameIdx = appendString("authorities");
+        ensureResmapEntry(authNameIdx, 0x01010018);           /* android.R.attr.authorities */
+        int expNameIdx = appendString("exported");
+        ensureResmapEntry(expNameIdx, 0x01010010);            /* android.R.attr.exported */
+        int clsValIdx = appendString(className);
+        int authValIdx = appendString(authorities);
+
+        int line = u32(appOff + 8);
+        byte[] start = new byte[36 + 60];
+        ByteBuffer bb = ByteBuffer.wrap(start).order(ByteOrder.LITTLE_ENDIAN);
+        bb.putShort((short) RES_XML_START_ELEMENT).putShort((short) 0x10).putInt(start.length);
+        bb.putInt(line).putInt(0xFFFFFFFF);                   /* line / comment */
+        bb.putInt(0xFFFFFFFF).putInt(elNameIdx);              /* 元素 ns 无前缀 / name */
+        bb.putShort((short) 0x14).putShort((short) 0x14).putShort((short) 3)
+          .putShort((short) 0).putShort((short) 0).putShort((short) 0);
+        bb.put(buildAttr(androidNs, nameIdx, clsValIdx));
+        bb.put(buildAttr(androidNs, authNameIdx, authValIdx));
+        bb.put(buildAttrTyped(androidNs, expNameIdx, 0xFFFFFFFF, 0x12, 0));   /* exported=false (boolean) */
+
+        byte[] end = new byte[24];
+        ByteBuffer eb = ByteBuffer.wrap(end).order(ByteOrder.LITTLE_ENDIAN);
+        eb.putShort((short) RES_XML_END_ELEMENT).putShort((short) 0x10).putInt(24);
+        eb.putInt(line).putInt(0xFFFFFFFF);
+        eb.putInt(0xFFFFFFFF).putInt(elNameIdx);              /* 必须与 START 的 ns/name 一致 */
+
+        byte[] chunk = new byte[start.length + end.length];
+        System.arraycopy(start, 0, chunk, 0, start.length);
+        System.arraycopy(end, 0, chunk, start.length, end.length);
+        insertBytes(appOff + appSize, chunk);                 /* application 首个子元素位置 */
     }
 
     /** 输出编辑后的 AXML 字节（重建：新字符串池 + 新 map + 原样中间段 + 修改后的 application 块）。 */
@@ -369,15 +435,36 @@ public final class AxmlEditor {
         return -1;
     }
 
+    /** 收集所有同名元素的某属性值（相对名还原后）；无属性的元素记 null。 */
+    private List<String> elementAttrValues(String elName, int nsIdx, String attrName, String pkg) {
+        List<String> out = new ArrayList<>();
+        int pos = 8;
+        while (pos + 8 <= data.length) {
+            int ctype = u16(pos);
+            int csize = u32(pos + 4);
+            if (csize < 8 || pos + csize > data.length) break;
+            if (ctype == RES_XML_START_ELEMENT && elName.equals(stringAt(u32(pos + 20)))) {
+                String v = attrValue(new int[]{pos}, nsIdx, attrName);
+                out.add(v == null ? null : resolveClassName(pkg, v));
+            }
+            pos += csize;
+        }
+        return out;
+    }
+
     private int attrEntryOff(int idx) {
         return appOff + 16 + appAttrStart + 20 * idx;
     }
 
     private byte[] buildAttr(int ns, int name, int value) {
+        return buildAttrTyped(ns, name, value, 0x03, value);   /* TYPE_STRING */
+    }
+
+    private byte[] buildAttrTyped(int ns, int name, int rawValue, int dataType, int dataVal) {
         byte[] a = new byte[20];
         ByteBuffer bb = ByteBuffer.wrap(a).order(ByteOrder.LITTLE_ENDIAN);
-        bb.putInt(ns).putInt(name).putInt(value);
-        bb.putShort((short) 8).put((byte) 0).put((byte) 0x03).putInt(value);
+        bb.putInt(ns).putInt(name).putInt(rawValue);
+        bb.putShort((short) 8).put((byte) 0).put((byte) dataType).putInt(dataVal);
         return a;
     }
 

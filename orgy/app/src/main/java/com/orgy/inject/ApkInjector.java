@@ -21,13 +21,18 @@ import java.util.zip.ZipFile;
  *  2. 信任锚 A^M / M 分拆（SecureRandom 掩码）
  *  3. payload dex 同长补丁：DEX_A→hex(A)、DEX_B→hex(M)、ORIG_APP→原 Application 类名
  *  4. payload so 同长补丁：SO_A→A、SO_B→M（raw 32 字节）
- *  5. AXML：application android:name → com.nangezi.tool.security.AppProxy
+ *  5. AXML：application android:name → AppProxy、android:appComponentFactory →
+ *     AppProxyFactory（覆盖加固/监控 SDK 的自定义 factory，堵住 AppComponentFactory
+ *     截胡绕过），并在 <application> 下插入 GuardProvider（校验双保险挂点）
  *  6. zip 重建：剥 v1 签名/签名块、追加 classesN.dex 与 lib/&lt;abi&gt;/libsigncheck.so
- *  7. 输出 &lt;base&gt;.orgy.unsigned.apk（与源 APK 同目录，不签名）
+ *  7. 产物自检（manifest 三挂点 + dex/so 补丁值 + 零残留），失败拒绝输出
+ *  8. 输出 &lt;base&gt;.orgy.unsigned.apk（与源 APK 同目录，不签名）
  */
 public final class ApkInjector {
 
     public static final String PROXY_CLASS = "com.nangezi.tool.security.AppProxy";
+    public static final String FACTORY_CLASS = "com.nangezi.tool.security.AppProxyFactory";
+    public static final String PROVIDER_CLASS = "com.nangezi.tool.security.GuardProvider";
 
     public interface Logger {
         void log(String line);
@@ -97,11 +102,18 @@ public final class ApkInjector {
         log.log("包名：" + mi.packageName + "  版本：" + (mi.versionName == null ? "-" : mi.versionName));
         log.log("原 Application：" + (origApp == null ? "(默认)" : origApp));
 
-        if (PROXY_CLASS.equals(origApp)) throw new IOException("该 APK 已注入过（Application 已是 " + PROXY_CLASS + "）");
+        if (PROXY_CLASS.equals(origApp) || FACTORY_CLASS.equals(mi.componentFactoryName)
+                || mi.providerNames.contains(PROVIDER_CLASS)) {
+            throw new IOException("该 APK 已注入过（存在 Orgy 挂点）");
+        }
 
         editor.setApplicationName(PROXY_CLASS);
+        editor.setApplicationComponentFactory(FACTORY_CLASS);
+        String authorities = (mi.packageName == null ? "orgy" : mi.packageName) + ".orgy-guard";
+        editor.insertProvider(PROVIDER_CLASS, authorities);
         byte[] newManifest = editor.toBytes();
-        log.log("AXML：application → " + PROXY_CLASS);
+        log.log("AXML：application → " + PROXY_CLASS + "，appComponentFactory → " + FACTORY_CLASS);
+        log.log("AXML：插入 " + PROVIDER_CLASS + "（authorities=" + authorities + "）");
 
         // ---- 3. dex 补丁 ----
         byte[] dex = payloadDex.clone();
@@ -109,7 +121,9 @@ public final class ApkInjector {
         AnchorPatcher.patchOnce(dex, AnchorPatcher.DEX_B, hexBytes(maskB), "DEX_B");
         AnchorPatcher.patchOnce(dex, AnchorPatcher.ORIG_APP,
                 AnchorPatcher.origAppValue(origApp), "ORIG_APP");
-        log.log("dex 占位符补丁完成（锚分拆 + 原 Application 名）");
+        AnchorPatcher.patchOnce(dex, AnchorPatcher.ORIG_FACTORY,
+                AnchorPatcher.origFactoryValue(mi.componentFactoryName), "ORIG_FACTORY");
+        log.log("dex 占位符补丁完成（锚分拆 + 原 Application 名 + 原 factory 名）");
 
         // ---- 4. 目标 ABI 与 so 补丁 ----
         List<String> abis = targetAbis(apk, payloadSo.keySet());
@@ -133,8 +147,77 @@ public final class ApkInjector {
         ZipRebuilder.rebuild(apk, out, newManifest, newDexName, dex, libs);
         log.log("输出：" + out.getAbsolutePath() + "（" + out.length() + " 字节，未签名）");
 
+        // ---- 6. 产物自检（拒绝任何静默失败）----
+        verifyOutput(out, anchorA, maskB, newDexName, abis, origApp, mi.componentFactoryName, log);
+
         return new Result(out, AnchorPatcher.toHex(anchor), info.certSha256Hex,
                 mi.packageName, mi.versionName, origApp, newDexName, abis);
+    }
+
+    /**
+     * 产物自检：从输出文件实读，核对
+     *  manifest 三挂点（AppProxy / AppProxyFactory / GuardProvider）、
+     *  dex/so 补丁值（锚分拆 + 原 Application/factory 名）、
+     *  占位符零残留。任一不符 → 删除输出并抛 IOException。
+     */
+    private static void verifyOutput(File out, byte[] anchorA, byte[] maskB, String newDexName,
+                                     List<String> abis, String origApp, String origFactory,
+                                     Logger log) throws IOException {
+        List<String> errors = new ArrayList<>();
+
+        byte[] manifest = readEntry(out, "AndroidManifest.xml");
+        if (manifest == null) {
+            errors.add("缺少 AndroidManifest.xml");
+        } else {
+            AxmlEditor.ManifestInfo vi = new AxmlEditor(manifest).readInfo();
+            if (!PROXY_CLASS.equals(vi.applicationName))
+                errors.add("application.name=" + vi.applicationName + "（期望 " + PROXY_CLASS + "）");
+            if (!FACTORY_CLASS.equals(vi.componentFactoryName))
+                errors.add("appComponentFactory=" + vi.componentFactoryName + "（期望 " + FACTORY_CLASS + "）");
+            if (!vi.providerNames.contains(PROVIDER_CLASS))
+                errors.add("缺少 GuardProvider 节点");
+        }
+
+        byte[] dex = readEntry(out, newDexName);
+        if (dex == null) {
+            errors.add("缺少 " + newDexName);
+        } else {
+            checkCount(errors, newDexName + " hex(锚A)", dex, hexBytes(anchorA), 1);
+            checkCount(errors, newDexName + " hex(掩码)", dex, hexBytes(maskB), 1);
+            checkPresent(errors, newDexName + " ORIG_APP 值", dex, AnchorPatcher.origAppValue(origApp));
+            checkPresent(errors, newDexName + " ORIG_FACTORY 值", dex, AnchorPatcher.origFactoryValue(origFactory));
+            checkCount(errors, newDexName + " 残留 DEX_A", dex, AnchorPatcher.DEX_A, 0);
+            checkCount(errors, newDexName + " 残留 DEX_B", dex, AnchorPatcher.DEX_B, 0);
+            checkCount(errors, newDexName + " 残留 ORIG_APP", dex, AnchorPatcher.ORIG_APP, 0);
+            checkCount(errors, newDexName + " 残留 ORIG_FACTORY", dex, AnchorPatcher.ORIG_FACTORY, 0);
+        }
+        for (String abi : abis) {
+            String entry = "lib/" + abi + "/libsigncheck.so";
+            byte[] so = readEntry(out, entry);
+            if (so == null) {
+                errors.add("缺少 " + entry);
+                continue;
+            }
+            checkCount(errors, entry + " 锚A", so, anchorA, 1);
+            checkCount(errors, entry + " 掩码", so, maskB, 1);
+            checkCount(errors, entry + " 残留 SO_A", so, AnchorPatcher.SO_A, 0);
+            checkCount(errors, entry + " 残留 SO_B", so, AnchorPatcher.SO_B, 0);
+        }
+
+        if (!errors.isEmpty()) {
+            out.delete();
+            throw new IOException("产物自检失败，已拒绝输出：" + errors);
+        }
+        log.log("产物自检通过（manifest 三挂点 + 补丁值 + 零残留）");
+    }
+
+    private static void checkCount(List<String> errors, String what, byte[] data, byte[] pattern, int expect) {
+        int n = AnchorPatcher.countOf(data, pattern);
+        if (n != expect) errors.add(what + " 命中 " + n + " 次（期望 " + expect + "）");
+    }
+
+    private static void checkPresent(List<String> errors, String what, byte[] data, byte[] pattern) {
+        if (AnchorPatcher.countOf(data, pattern) < 1) errors.add(what + " 未找到");
     }
 
     /** 目标 ABI = 源 APK 已有 lib/&lt;abi&gt;/ 与 payload 交集；源无 native 库时取 payload 全部。 */

@@ -13,6 +13,7 @@ public final class AnchorPatcher {
     public static final byte[] DEX_A = ("ORGYDEXANCHORA" + repeat('0', 50)).getBytes(StandardCharsets.US_ASCII); // 64
     public static final byte[] DEX_B = ("ORGYDEXANCHORB" + repeat('0', 50)).getBytes(StandardCharsets.US_ASCII); // 64
     public static final byte[] ORIG_APP = origAppPattern();                                                     // 128
+    public static final byte[] ORIG_FACTORY = origFactoryPattern();                                             // 128
     public static final byte[] SO_A = ("ORGYSOANCHORA" + repeat('0', 19)).getBytes(StandardCharsets.US_ASCII);  // 32
     public static final byte[] SO_B = ("ORGYSOANCHORB" + repeat('0', 19)).getBytes(StandardCharsets.US_ASCII);  // 32
 
@@ -81,12 +82,21 @@ public final class AnchorPatcher {
 
     /** ORIG_APP 补丁值：类名 UTF-8 + 0x01 右填充至 128；null = 无原 Application（全 0x01）。 */
     public static byte[] origAppValue(String fullClassName) {
+        return nameValue128(fullClassName, "Application 类名过长（>128 字节）");
+    }
+
+    /** ORIG_FACTORY 补丁值：类名 UTF-8 + 0x01 右填充至 128；null = 无原 factory（全 0x01）。 */
+    public static byte[] origFactoryValue(String fullClassName) {
+        return nameValue128(fullClassName, "appComponentFactory 类名过长（>128 字节）");
+    }
+
+    private static byte[] nameValue128(String fullClassName, String tooLongMsg) {
         byte[] out = new byte[128];
         java.util.Arrays.fill(out, (byte) 0x01);
         if (fullClassName == null) return out;
         byte[] name = fullClassName.getBytes(StandardCharsets.UTF_8);
         if (name.length > 128) {
-            throw new IllegalArgumentException("Application 类名过长（>128 字节）：" + fullClassName);
+            throw new IllegalArgumentException(tooLongMsg + "：" + fullClassName);
         }
         System.arraycopy(name, 0, out, 0, name.length);
         return out;
@@ -98,6 +108,28 @@ public final class AnchorPatcher {
         byte[] head = "ORGYORIGAPPNAME".getBytes(StandardCharsets.US_ASCII);
         System.arraycopy(head, 0, out, 0, head.length);
         return out;
+    }
+
+    private static byte[] origFactoryPattern() {
+        byte[] out = new byte[128];
+        java.util.Arrays.fill(out, (byte) 0x01);
+        byte[] head = "ORGYORIGFACTORY".getBytes(StandardCharsets.US_ASCII);
+        System.arraycopy(head, 0, out, 0, head.length);
+        return out;
+    }
+
+    /** 统计 pattern 出现次数（不修改 data，用于产物自检）。 */
+    public static int countOf(byte[] data, byte[] pattern) {
+        int count = 0;
+        outer:
+        for (int i = 0; i <= data.length - pattern.length; i++) {
+            for (int j = 0; j < pattern.length; j++) {
+                if (data[i + j] != pattern[j]) continue outer;
+            }
+            count++;
+            i += pattern.length - 1;
+        }
+        return count;
     }
 
     private static String repeat(char c, int n) {

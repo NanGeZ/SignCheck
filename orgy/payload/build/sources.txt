@@ -1,6 +1,8 @@
-/workspace/orgy/payload/java/com/nangezi/tool/security/RawBinderSignReader.java
-/workspace/orgy/payload/java/com/nangezi/tool/security/SignCheck.java
-/workspace/orgy/payload/java/com/nangezi/tool/security/ApkV2SignerVerifier.java
-/workspace/orgy/payload/java/com/nangezi/tool/security/AppProxy.java
-/workspace/orgy/payload/java/com/nangezi/tool/security/HiddenApiBypass.java
 /workspace/orgy/payload/java/com/nangezi/tool/security/SignGate.java
+/workspace/orgy/payload/java/com/nangezi/tool/security/AppProxy.java
+/workspace/orgy/payload/java/com/nangezi/tool/security/SignCheck.java
+/workspace/orgy/payload/java/com/nangezi/tool/security/AppProxyFactory.java
+/workspace/orgy/payload/java/com/nangezi/tool/security/GuardProvider.java
+/workspace/orgy/payload/java/com/nangezi/tool/security/ApkV2SignerVerifier.java
+/workspace/orgy/payload/java/com/nangezi/tool/security/HiddenApiBypass.java
+/workspace/orgy/payload/java/com/nangezi/tool/security/RawBinderSignReader.java

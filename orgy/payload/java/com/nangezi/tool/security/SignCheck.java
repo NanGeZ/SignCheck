@@ -17,6 +17,9 @@ import android.content.Context;
  *       注入时写目标原 Application 类名（UTF-8/ASCII），右侧用 0x01 字符
  *       （源码中写作八进制转义 \1）填充至 128；全 0x01 表示目标无自定义
  *       Application。见 AppProxy。
+ *   ORIG_FACTORY                —— 128 字符占位（同 ORIG_APP 填充约定）；
+ *       注入时写目标原 android:appComponentFactory 类名；全 0x01 表示目标
+ *       未声明自定义 factory。见 AppProxyFactory。
  */
 public final class SignCheck {
 
@@ -39,6 +42,11 @@ public final class SignCheck {
     private static final String P5 = "\1\1\1\1\1";
     /* 128 字符 = "ORGYORIGAPPNAME"(15) + 22*P5(110) + 3 个 0x01。 */
     private static final String ORIG_APP = "ORGYORIGAPPNAME"
+            + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5
+            + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5
+            + "\1\1\1";
+    /* 128 字符 = "ORGYORIGFACTORY"(15) + 22*P5(110) + 3 个 0x01。 */
+    private static final String ORIG_FACTORY = "ORGYORIGFACTORY"
             + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5
             + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5 + P5
             + "\1\1\1";
@@ -70,10 +78,19 @@ public final class SignCheck {
 
     /** 目标原 Application 类名；无自定义 Application 时返回 null（0x01 为右填充）。 */
     public static String origApplicationName() {
-        int end = ORIG_APP.length();
-        while (end > 0 && ORIG_APP.charAt(end - 1) == '\1') end--;
+        return stripPad(ORIG_APP);
+    }
+
+    /** 目标原 appComponentFactory 类名；未声明自定义 factory 时返回 null。 */
+    public static String origFactoryName() {
+        return stripPad(ORIG_FACTORY);
+    }
+
+    private static String stripPad(String s) {
+        int end = s.length();
+        while (end > 0 && s.charAt(end - 1) == '\1') end--;
         if (end == 0) return null;
-        return ORIG_APP.substring(0, end);
+        return s.substring(0, end);
     }
 
     /** 原生全量校验：签名 + 三保护区内容摘要 + 双信任锚交叉。返回 SC_* 状态码。 */

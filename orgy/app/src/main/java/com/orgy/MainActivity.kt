@@ -242,7 +242,8 @@ private fun OrgyApp() {
                                     )
                                     withContext(Dispatchers.Main) {
                                         result = r
-                                        logs = logs + "完成。请用你的密钥签名后安装。"
+                                        logs = logs + "完成。必须用【原签名证书】签名后安装。"
+                                        logs = logs + "若换其他证书签名，启动时签名校验会立即杀进程（预期行为）。"
                                     }
                                 } catch (e: Exception) {
                                     withContext(Dispatchers.Main) {
@@ -269,6 +270,10 @@ private fun OrgyApp() {
                                 InfoRow("信任锚", r.anchorHex, mono = true)
                                 InfoRow("追加 dex", r.newDexName)
                                 InfoRow("注入 ABI", r.injectedAbis.joinToString(", "))
+                                Text(
+                                    "签名须知：只能用注入时锚定的原证书签名；换证书重签 → 启动即被杀（fail closed）。请妥善备份原签名密钥。",
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
                                 Spacer(Modifier.height(4.dp))
                                 Button(onClick = {
                                     saveApk.launch(r.output.name)

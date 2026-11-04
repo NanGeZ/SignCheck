@@ -967,6 +967,1193 @@ static int32_t g_last_status = -1;
 int sc_last_status(void) { return g_last_status; }
 
 /* ============================================================
+ * 7b. v1（JAR / jarsigner）全链验签
+ *     适配"纯 v1 签名"的 APK（META-INF/ *.SF 与 *.RSA，无 APK Signing Block）：
+ *     PKCS#7 → 证书指纹==锚 → RSA 验签 SF（兼容有/无 signedAttrs）
+ *     → SF 的 Digest-Manifest（缺省则逐条目比对）→ MANIFEST.MF
+ *     → 逐条目 SHA-256/512 对 zip 实际未压缩内容（双向覆盖，fail closed）。
+ *     比 Android 安装期 JarVerifier 更严：未列摘要的条目一律拒绝。
+ * ============================================================ */
+
+/* ---------- base64 ---------- */
+
+static int b64_val(uint8_t c)
+{
+    if (c >= 'A' && c <= 'Z') return c - 'A';
+    if (c >= 'a' && c <= 'z') return c - 'a' + 26;
+    if (c >= '0' && c <= '9') return c - '0' + 52;
+    if (c == '+') return 62;
+    if (c == '/') return 63;
+    return -1;
+}
+
+/* 标准base64（容忍 \r\n 与空白）；out 需容纳 n*3/4 字节 */
+static int b64_dec(const uint8_t *in, size_t n, uint8_t *out, size_t *outn)
+{
+    uint32_t acc = 0;
+    int bits = 0;
+    size_t o = 0, i;
+    for (i = 0; i < n; i++) {
+        uint8_t c = in[i];
+        if (c == '=') break;
+        if (c == '\r' || c == '\n' || c == ' ' || c == '\t') continue;
+        {
+            int v = b64_val(c);
+            if (v < 0) return -1;
+            acc = (acc << 6) | (uint32_t)v;
+            bits += 6;
+            if (bits >= 8) {
+                bits -= 8;
+                out[o++] = (uint8_t)(acc >> bits);
+            }
+        }
+    }
+    *outn = o;
+    return 0;
+}
+
+/* ---------- RFC 1951 inflate（流式输入，输出经 sink；puff 风格） ---------- */
+
+typedef struct {
+    int fd;
+    uint64_t off;        /* 下一未读字节的文件偏移 */
+    size_t remain;       /* 未读压缩字节 */
+    uint8_t buf[4096];
+    size_t bpos, blen;
+    uint64_t acc;        /* 位累加器（LSB first） */
+    int cnt;
+} bitrd;
+
+static int br_fill(bitrd *s)
+{
+    size_t want;
+    ssize_t r;
+    if (s->bpos < s->blen) return 0;
+    if (s->remain == 0) return -1;
+    want = s->remain < sizeof s->buf ? s->remain : sizeof s->buf;
+    r = pread(s->fd, s->buf, want, (off_t)s->off);
+    if (r < 0 || (size_t)r != want) return -1;
+    s->off += want;
+    s->remain -= want;
+    s->bpos = 0;
+    s->blen = want;
+    return 0;
+}
+
+static int br_bits(bitrd *s, int need, uint32_t *out)
+{
+    while (s->cnt < need) {
+        if (br_fill(s)) return -1;
+        s->acc |= (uint64_t)s->buf[s->bpos++] << s->cnt;
+        s->cnt += 8;
+    }
+    *out = (uint32_t)(s->acc & ((1u << need) - 1u));
+    s->acc >>= need;
+    s->cnt -= need;
+    return 0;
+}
+
+typedef struct { short count[16]; short symbol[288]; } huf;
+
+static int huff_build(const short *lengths, int n, huf *h)
+{
+    short offs[16];
+    int symbol, len, left;
+    for (len = 0; len < 16; len++) h->count[len] = 0;
+    for (symbol = 0; symbol < n; symbol++) h->count[lengths[symbol]]++;
+    left = 1;
+    for (len = 1; len < 16; len++) {
+        left <<= 1;
+        left -= h->count[len];
+        if (left < 0) return -1;                 /* over-subscribed */
+    }
+    offs[1] = 0;
+    for (len = 1; len < 15; len++) offs[len + 1] = (short)(offs[len] + h->count[len]);
+    for (symbol = 0; symbol < n; symbol++)
+        if (lengths[symbol]) h->symbol[offs[lengths[symbol]]++] = (short)symbol;
+    return left;                                 /* >0 = 不完整 */
+}
+
+static int huff_decode(bitrd *s, const huf *h)
+{
+    int len = 1, code = 0, first = 0, index = 0, count;
+    while (len <= 15) {
+        uint32_t b;
+        if (br_bits(s, 1, &b)) return -1;
+        code |= (int)b;
+        count = h->count[len];
+        if (code - count < first) return h->symbol[index + (code - first)];
+        index += count;
+        first += count;
+        first <<= 1;
+        code <<= 1;
+        len++;
+    }
+    return -1;
+}
+
+static huf g_fixlen, g_fixdist;
+static int g_fixed_ready = 0;
+
+static void huff_fixed_init(void)
+{
+    short lengths[288];
+    int i;
+    if (g_fixed_ready) return;
+    for (i = 0; i < 144; i++) lengths[i] = 8;
+    for (; i < 256; i++) lengths[i] = 9;
+    for (; i < 280; i++) lengths[i] = 7;
+    for (; i < 288; i++) lengths[i] = 8;
+    huff_build(lengths, 288, &g_fixlen);
+    for (i = 0; i < 32; i++) lengths[i] = 5;
+    huff_build(lengths, 32, &g_fixdist);
+    g_fixed_ready = 1;
+}
+
+static const short LBASE[29] = { 3,4,5,6,7,8,9,10,11,13,15,17,19,23,27,31,35,43,51,
+                                 59,67,83,99,115,131,163,195,227,258 };
+static const short LEXT[29] = { 0,0,0,0,0,0,0,0,1,1,1,1,2,2,2,2,3,3,3,3,4,4,4,4,5,5,5,5,0 };
+static const short DBASE[30] = { 1,2,3,4,5,7,9,13,17,25,33,49,65,97,129,193,257,385,513,
+                                 769,1025,1537,2049,3073,4097,6145,8193,12289,16385,24577 };
+static const short DEXT[30] = { 0,0,0,0,1,1,2,2,3,3,4,4,5,5,6,6,7,7,8,8,9,9,10,10,11,11,12,12,13,13 };
+static const short LORDER[19] = { 16,17,18,0,8,7,9,6,10,5,11,4,12,3,13,2,14,1,15 };
+
+typedef int (*out_sink)(void *ctx, const uint8_t *p, size_t n);
+
+typedef struct {
+    out_sink sink;
+    void *sctx;
+    uint8_t win[65536];
+    size_t wpos;
+    size_t total;
+    size_t cap;          /* 输出上限 = 期望 usize，超出即错误（防 zip bomb） */
+} infl;
+
+static int inf_flush(infl *f)
+{
+    if (f->wpos) {
+        if (f->sink && f->sink(f->sctx, f->win, f->wpos)) return -1;
+        f->wpos = 0;
+    }
+    return 0;
+}
+
+static int inf_put(infl *f, uint8_t b)
+{
+    if (f->wpos == sizeof f->win) {
+        /* 冲刷前半 32KB，保留后半作回看窗口（dist ≤ 32768 恒可解） */
+        if (f->sink && f->sink(f->sctx, f->win, 32768)) return -1;
+        memmove(f->win, f->win + 32768, 32768);
+        f->wpos = 32768;
+    }
+    if (f->total >= f->cap) return -1;
+    f->win[f->wpos++] = b;
+    f->total++;
+    return 0;
+}
+
+static int inf_copy(infl *f, size_t dist, size_t len)
+{
+    size_t i;
+    if (dist == 0 || dist > 32768 || dist > f->total) return -1;
+    for (i = 0; i < len; i++) {
+        if (inf_put(f, f->win[f->wpos - dist])) return -1;
+    }
+    return 0;
+}
+
+static int inf_stored(bitrd *s, infl *f)
+{
+    uint32_t len, nlen, i, b;
+    int drop = s->cnt & 7;                       /* 对齐字节边界：丢弃段内残余位 */
+    s->acc >>= drop;
+    s->cnt -= drop;
+    if (br_bits(s, 16, &len) || br_bits(s, 16, &nlen)) return -1;
+    if ((len ^ 0xFFFFu) != nlen) return -1;
+    for (i = 0; i < len; i++) {
+        if (br_bits(s, 8, &b)) return -1;
+        if (inf_put(f, (uint8_t)b)) return -1;
+    }
+    return 0;
+}
+
+static int inf_codes(bitrd *s, const huf *lenc, const huf *distc, infl *f)
+{
+    for (;;) {
+        int sym = huff_decode(s, lenc);
+        if (sym < 0) return -1;
+        if (sym < 256) {
+            if (inf_put(f, (uint8_t)sym)) return -1;
+        } else if (sym == 256) {
+            return 0;
+        } else {
+            uint32_t eb, db;
+            size_t len, dist;
+            int dsym;
+            if (sym > 285) return -1;
+            sym -= 257;
+            if (br_bits(s, LEXT[sym], &eb)) return -1;
+            len = (size_t)LBASE[sym] + eb;
+            dsym = huff_decode(s, distc);
+            if (dsym < 0 || dsym > 29) return -1;
+            if (br_bits(s, DEXT[dsym], &db)) return -1;
+            dist = (size_t)DBASE[dsym] + db;
+            if (inf_copy(f, dist, len)) return -1;
+        }
+    }
+}
+
+static int inf_dynamic(bitrd *s, huf *lenc, huf *distc, short *lengths)
+{
+    uint32_t b;
+    int nlen, ndist, ncode, index = 0, r;
+    if (br_bits(s, 5, &b)) return -1;
+    nlen = 257 + (int)b;
+    if (br_bits(s, 5, &b)) return -1;
+    ndist = 1 + (int)b;
+    if (br_bits(s, 4, &b)) return -1;
+    ncode = 4 + (int)b;
+    if (nlen > 286 || ndist > 30) return -1;
+    while (index < ncode) {
+        if (br_bits(s, 3, &b)) return -1;
+        lengths[LORDER[index++]] = (short)b;
+    }
+    while (index < nlen + ndist) {
+        int sym = huff_decode(s, lenc);
+        int rep, len = 0;
+        if (sym < 0) return -1;
+        if (sym < 16) {
+            lengths[index++] = (short)sym;
+            continue;
+        }
+        if (sym == 16) {
+            if (index == 0) return -1;
+            len = lengths[index - 1];
+            if (br_bits(s, 2, &b)) return -1;
+            rep = 3 + (int)b;
+        } else if (sym == 17) {
+            if (br_bits(s, 3, &b)) return -1;
+            rep = 3 + (int)b;
+        } else {
+            if (br_bits(s, 7, &b)) return -1;
+            rep = 11 + (int)b;
+        }
+        if (index + rep > nlen + ndist) return -1;
+        while (rep--) lengths[index++] = (short)len;
+    }
+    r = huff_build(lengths, nlen, lenc);
+    if (r < 0) return -1;
+    if (r > 0 && nlen != lenc->count[0] + lenc->count[1]) return -1;  /* 不完整仅允许单码 */
+    r = huff_build(lengths + nlen, ndist, distc);
+    if (r < 0) return -1;
+    return 0;
+}
+
+/* 解压整条 deflate 流；成功时 *total_out ≤ cap（调用方负责比对 == usize） */
+static int inflate_stream(int fd, uint64_t doff, size_t csize,
+                          out_sink sink, void *sctx, size_t cap, size_t *total_out)
+{
+    bitrd s;
+    infl f;
+    huf lenc, distc;
+    short lengths[288 + 32];
+    int last = 0, rc = 0;
+
+    memset(&s, 0, sizeof s);
+    s.fd = fd; s.off = doff; s.remain = csize;
+    memset(&f, 0, sizeof f);
+    f.sink = sink; f.sctx = sctx; f.cap = cap;
+    huff_fixed_init();
+    do {
+        uint32_t b1, b2;
+        int type;
+        if (br_bits(&s, 1, &b1) || br_bits(&s, 2, &b2)) { rc = -1; break; }
+        last = (int)b1;
+        type = (int)b2;
+        if (type == 0) rc = inf_stored(&s, &f);
+        else if (type == 1) rc = inf_codes(&s, &g_fixlen, &g_fixdist, &f);
+        else if (type == 2) {
+            if (inf_dynamic(&s, &lenc, &distc, lengths)) { rc = -1; break; }
+            rc = inf_codes(&s, &lenc, &distc, &f);
+        } else { rc = -1; break; }
+    } while (!last && rc == 0);
+    if (rc == 0 && inf_flush(&f)) rc = -1;
+    *total_out = f.total;
+    return rc;
+}
+
+/* ---------- 中央目录遍历与条目读取 ---------- */
+
+typedef struct {
+    uint64_t lho;        /* local header 偏移 */
+    uint16_t method;
+    uint64_t csize, usize;
+} cent_info;
+
+/* 顺序遍历中央目录；cb 返回 0 继续，非 0 中止并透传 */
+static int cd_walk(int fd, uint64_t cdOff, uint64_t cdSize,
+                   int (*cb)(void *ctx, const uint8_t *name, size_t nlen,
+                             const cent_info *ci),
+                   void *ctx)
+{
+    uint64_t cur = cdOff, end = cdOff + cdSize;
+    uint8_t h[46];
+
+    while (cur + 46 <= end) {
+        uint16_t nlen, elen, clen;
+        uint64_t nxt;
+        cent_info ci;
+        uint8_t name[1024];
+        int r;
+
+        if (pread(fd, h, 46, (off_t)cur) != 46) return SC_E_IO_ERROR;
+        if (h[0] != 'P' || h[1] != 'K' || h[2] != 1 || h[3] != 2) return SC_E_PARSE_ERROR;
+        ci.method = (uint16_t)(h[10] | (h[11] << 8));
+        ci.csize = rd_u32le(h + 20);
+        ci.usize = rd_u32le(h + 24);
+        nlen = (uint16_t)(h[28] | (h[29] << 8));
+        elen = (uint16_t)(h[30] | (h[31] << 8));
+        clen = (uint16_t)(h[32] | (h[33] << 8));
+        ci.lho = rd_u32le(h + 42);
+        nxt = cur + 46u + nlen + elen + clen;
+        if (nxt > end) return SC_E_PARSE_ERROR;
+        if (nlen == 0 || nlen > sizeof name) return SC_E_PARSE_ERROR;
+        if (pread(fd, name, nlen, (off_t)(cur + 46)) != (ssize_t)nlen) return SC_E_IO_ERROR;
+        r = cb(ctx, name, nlen, &ci);
+        if (r) return r;
+        cur = nxt;
+    }
+    if (cur != end) return SC_E_PARSE_ERROR;
+    return 0;
+}
+
+/* 数据起点 = local header + 30 + local 名长 + local extra 长（zipalign 只加 extra） */
+static int entry_data_offset(int fd, uint64_t lho, uint64_t *doff)
+{
+    uint8_t lh[30];
+    uint16_t nlen, elen;
+    if (pread(fd, lh, 30, (off_t)lho) != 30) return SC_E_IO_ERROR;
+    if (lh[0] != 'P' || lh[1] != 'K' || lh[2] != 3 || lh[3] != 4) return SC_E_PARSE_ERROR;
+    nlen = (uint16_t)(lh[26] | (lh[27] << 8));
+    elen = (uint16_t)(lh[28] | (lh[29] << 8));
+    *doff = lho + 30u + nlen + elen;
+    return 0;
+}
+
+static int hash_sink(void *ctx, const uint8_t *p, size_t n)
+{
+    sha256_update((sha256_ctx *)ctx, p, n);
+    return 0;
+}
+
+/* 单条目内容 SHA-256（未压缩内容；STORED 直读，DEFLATED 解压流式哈希） */
+static int entry_hash256(int fd, const cent_info *ci, uint8_t digest[32])
+{
+    uint64_t doff, done = 0;
+    sha256_ctx c;
+    uint8_t *buf;
+
+    {
+        int rc = entry_data_offset(fd, ci->lho, &doff);
+        if (rc) return rc;
+    }
+    sha256_init(&c);
+    if (ci->method == 0) {
+        if (ci->csize != ci->usize) return SC_E_PARSE_ERROR;
+        buf = (uint8_t *)malloc(65536);
+        if (!buf) return SC_E_NOMEM;
+        while (done < ci->usize) {
+            size_t n = (ci->usize - done) > 65536 ? 65536 : (size_t)(ci->usize - done);
+            ssize_t r = pread(fd, buf, n, (off_t)(doff + done));
+            if (r < 0 || (size_t)r != n) { free(buf); return SC_E_IO_ERROR; }
+            sha256_update(&c, buf, n);
+            done += n;
+        }
+        free(buf);
+    } else if (ci->method == 8) {
+        size_t total = 0;
+        if (inflate_stream(fd, doff, (size_t)ci->csize, hash_sink, &c,
+                           (size_t)ci->usize, &total)) return SC_E_VERIFY_FAILED;
+        if (total != (size_t)ci->usize) return SC_E_VERIFY_FAILED;
+    } else {
+        return SC_E_PARSE_ERROR;
+    }
+    sha256_final(&c, digest);
+    return 0;
+}
+
+typedef struct { uint8_t *p; size_t n, cap; int over; } membuf;
+
+static int buf_sink(void *ctx, const uint8_t *p, size_t n)
+{
+    membuf *m = (membuf *)ctx;
+    if (m->n + n > m->cap) { m->over = 1; return -1; }
+    memcpy(m->p + m->n, p, n);
+    m->n += n;
+    return 0;
+}
+
+/* 整条读入内存（上限保护）；STORED 直读，DEFLATED 解压 */
+static int entry_read(int fd, const cent_info *ci, size_t maxcap,
+                      uint8_t **out, size_t *outn)
+{
+    uint64_t doff;
+    uint8_t *buf;
+    int rc = entry_data_offset(fd, ci->lho, &doff);
+
+    if (rc) return rc;
+    if (ci->usize > maxcap || ci->csize > maxcap * 2 + 65536) return SC_E_PARSE_ERROR;
+    buf = (uint8_t *)malloc(ci->usize ? (size_t)ci->usize : 1);
+    if (!buf) return SC_E_NOMEM;
+    if (ci->method == 0) {
+        if (ci->csize != ci->usize) { free(buf); return SC_E_PARSE_ERROR; }
+        if (ci->usize && pread(fd, buf, (size_t)ci->usize, (off_t)doff) != (ssize_t)ci->usize) {
+            free(buf);
+            return SC_E_IO_ERROR;
+        }
+    } else if (ci->method == 8) {
+        membuf m;
+        size_t total = 0;
+        m.p = buf; m.n = 0; m.cap = (size_t)ci->usize; m.over = 0;
+        if (inflate_stream(fd, doff, (size_t)ci->csize, buf_sink, &m,
+                           (size_t)ci->usize, &total) || m.over) {
+            free(buf);
+            return SC_E_VERIFY_FAILED;
+        }
+        if (total != (size_t)ci->usize) { free(buf); return SC_E_VERIFY_FAILED; }
+    } else {
+        free(buf);
+        return SC_E_PARSE_ERROR;
+    }
+    *out = buf;
+    *outn = (size_t)ci->usize;
+    return 0;
+}
+
+/* ---------- PKCS#7 SignedData 最小解析（只取验签所需字段） ---------- */
+
+static const uint8_t OID_SIGNED_DATA[9] = { 0x2a,0x86,0x48,0x86,0xf7,0x0d,0x01,0x07,0x02 };
+static const uint8_t OID_SHA256[9]      = { 0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x01 };
+static const uint8_t OID_SHA512[9]      = { 0x60,0x86,0x48,0x01,0x65,0x03,0x04,0x02,0x03 };
+static const uint8_t OID_RSA_ENC[9]     = { 0x2a,0x86,0x48,0x86,0xf7,0x0d,0x01,0x01,0x01 };
+static const uint8_t OID_SHA256_RSA[9]  = { 0x2a,0x86,0x48,0x86,0xf7,0x0d,0x01,0x01,0x0b };
+static const uint8_t OID_SHA512_RSA[9]  = { 0x2a,0x86,0x48,0x86,0xf7,0x0d,0x01,0x01,0x0d };
+static const uint8_t OID_MSG_DIGEST[9]  = { 0x2a,0x86,0x48,0x86,0xf7,0x0d,0x01,0x09,0x04 };
+
+typedef struct {
+    const uint8_t *cert;      /* 第一个证书的完整 TLV */
+    size_t cert_len;
+    int use_sha512;           /* digestAlgorithm：0=SHA-256，1=SHA-512，-1=不支持 */
+    int alg_ok;               /* signatureAlgorithm ∈ {rsaEncryption, sha*WithRSA} */
+    const uint8_t *sig;
+    size_t sig_len;
+    const uint8_t *attrs_tlv; /* [0] signedAttrs TLV 起点（0xA0） */
+    const uint8_t *attrs_val;
+    size_t attrs_len;
+    int has_attrs;
+} pk7_sig;
+
+/* AlgorithmIdentifier 内容 → 其 OID 是否等于 oid9 */
+static int algid_oid(const dv *algid, const uint8_t *oid9)
+{
+    const uint8_t *c = algid->p, *e = algid->p + algid->len, *tlv;
+    uint8_t tag;
+    dv v;
+    if (der_next(&c, e, &tag, &v, &tlv) || tag != 0x06 || v.len != 9) return 0;
+    return memcmp(v.p, oid9, 9) == 0;
+}
+
+static int pk7_parse(const uint8_t *p, size_t n, pk7_sig *o)
+{
+    const uint8_t *cur = p, *end = p + n, *tlv;
+    uint8_t tag;
+    dv v;
+
+    memset(o, 0, sizeof *o);
+    o->use_sha512 = -1;
+
+    /* ContentInfo SEQUENCE { OID signedData, [0] SignedData } */
+    if (der_next(&cur, end, &tag, &v, &tlv) || tag != 0x30) return -1;
+    cur = v.p; end = v.p + v.len;
+    if (der_next(&cur, end, &tag, &v, &tlv) || tag != 0x06 || v.len != 9 ||
+        memcmp(v.p, OID_SIGNED_DATA, 9) != 0) return -1;
+    if (der_next(&cur, end, &tag, &v, &tlv) || tag != 0xA0) return -1;
+    cur = v.p; end = v.p + v.len;
+    if (der_next(&cur, end, &tag, &v, &tlv) || tag != 0x30) return -1;
+    cur = v.p; end = v.p + v.len;
+
+    /* SignedData: version / digestAlgorithms / contentInfo / [0]certs / signerInfos */
+    if (der_next(&cur, end, &tag, &v, &tlv) || tag != 0x02) return -1;   /* version */
+    if (der_next(&cur, end, &tag, &v, &tlv) || tag != 0x31) return -1;   /* digestAlgos SET */
+    if (der_next(&cur, end, &tag, &v, &tlv) || tag != 0x30) return -1;   /* contentInfo */
+    if (cur < end) {
+        const uint8_t *save = cur;
+        if (der_next(&cur, end, &tag, &v, &tlv)) return -1;
+        if (tag == 0xA0) {
+            /* certificates（IMPLICIT SET OF Certificate）→ 第一个证书 */
+            const uint8_t *c2 = v.p, *e2 = v.p + v.len, *ctlv;
+            dv cv;
+            if (der_next(&c2, e2, &tag, &cv, &ctlv) || tag != 0x30) return -1;
+            o->cert = ctlv;
+            o->cert_len = (size_t)(c2 - ctlv);
+        } else {
+            cur = save;   /* 无证书字段（按 RFC 必有 signerInfos） */
+        }
+    }
+    if (der_next(&cur, end, &tag, &v, &tlv) || tag != 0x31) return -1;   /* signerInfos */
+    cur = v.p; end = v.p + v.len;
+    if (der_next(&cur, end, &tag, &v, &tlv) || tag != 0x30) return -1;   /* SignerInfo */
+    cur = v.p; end = v.p + v.len;
+
+    if (der_next(&cur, end, &tag, &v, &tlv) || tag != 0x02) return -1;   /* version */
+    if (der_next(&cur, end, &tag, &v, &tlv) || tag != 0x30) return -1;   /* issuerAndSerial */
+    if (der_next(&cur, end, &tag, &v, &tlv) || tag != 0x30) return -1;   /* digestAlgorithm */
+    o->use_sha512 = -1;
+    if (algid_oid(&v, OID_SHA256)) o->use_sha512 = 0;
+    else if (algid_oid(&v, OID_SHA512)) o->use_sha512 = 1;
+
+    if (cur < end) {
+        const uint8_t *save = cur;
+        if (der_next(&cur, end, &tag, &v, &tlv)) return -1;
+        if (tag == 0xA0) {
+            o->has_attrs = 1;
+            o->attrs_tlv = tlv;
+            o->attrs_val = v.p;
+            o->attrs_len = v.len;
+        } else {
+            cur = save;
+        }
+    }
+
+    if (der_next(&cur, end, &tag, &v, &tlv) || tag != 0x30) return -1;   /* signatureAlgorithm */
+    if (algid_oid(&v, OID_RSA_ENC) || algid_oid(&v, OID_SHA256_RSA) ||
+        algid_oid(&v, OID_SHA512_RSA)) {
+        o->alg_ok = 1;
+    }
+    /* sha*WithRSAEncryption 自带散列，须与 digestAlgorithm 一致 */
+    if (o->alg_ok && (algid_oid(&v, OID_SHA256_RSA) && o->use_sha512 != 0)) o->alg_ok = 0;
+    if (o->alg_ok && (algid_oid(&v, OID_SHA512_RSA) && o->use_sha512 != 1)) o->alg_ok = 0;
+
+    if (der_next(&cur, end, &tag, &v, &tlv) || tag != 0x04 || v.len == 0) return -1;
+    o->sig = v.p;
+    o->sig_len = v.len;
+    if (!o->cert || !o->alg_ok || o->use_sha512 < 0) return -1;
+    return 0;
+}
+
+/* signedAttrs 中找 messageDigest（1.2.840.113549.1.9.4）属性值 */
+static int pk7_find_msg_digest(const pk7_sig *k, dv *md)
+{
+    const uint8_t *c = k->attrs_val, *e = k->attrs_val + k->attrs_len, *tlv;
+    uint8_t tag;
+
+    while (c < e) {
+        dv seq;
+        if (der_next(&c, e, &tag, &seq, &tlv) || tag != 0x30) return -1;
+        {
+            const uint8_t *ic = seq.p, *ie = seq.p + seq.len;
+            dv oid, set;
+            if (der_next(&ic, ie, &tag, &oid, &tlv) || tag != 0x06 || oid.len != 9) return -1;
+            if (memcmp(oid.p, OID_MSG_DIGEST, 9) == 0) {
+                if (der_next(&ic, ie, &tag, &set, &tlv) || tag != 0x31) return -1;
+                {
+                    const uint8_t *oc = set.p, *oe = set.p + set.len;
+                    if (der_next(&oc, oe, &tag, md, &tlv) || tag != 0x04) return -1;
+                    if (oc != oe) return -1;                    /* SET 只允许一个元素 */
+                    if (md->len != 32 && md->len != 64) return -1;
+                    return 0;
+                }
+            }
+        }
+    }
+    return -1;
+}
+
+/* signedAttrs [0] TLV → DER SET OF：tag 换 0x31、长度与内容原样（RFC 5652 §9.3 签名输入） */
+static uint8_t *pk7_attrs_as_set(const pk7_sig *k, size_t *outn)
+{
+    size_t hdr = (size_t)(k->attrs_val - (k->attrs_tlv + 1));
+    uint8_t *buf = (uint8_t *)malloc(k->attrs_len + 1 + hdr);
+    if (!buf) return NULL;
+    buf[0] = 0x31;
+    memcpy(buf + 1, k->attrs_tlv + 1, hdr);
+    memcpy(buf + 1 + hdr, k->attrs_val, k->attrs_len);
+    *outn = 1 + hdr + k->attrs_len;
+    return buf;
+}
+
+/* ---------- JAR manifest 头解析（\r\n、72 字节续行） ---------- */
+
+typedef int (*jar_cb)(void *ctx, int sec, const uint8_t *k, size_t kl,
+                      const uint8_t *v, size_t vl);
+
+static int jar_emit_line(void *ctx, jar_cb cb, int sec, const uint8_t *line, size_t llen)
+{
+    size_t c, vs;
+    for (c = 0; c < llen; c++)
+        if (line[c] == ':') break;
+    if (c == llen || c + 1 >= llen) return -1;
+    vs = c + 1;
+    if (line[vs] == ' ') vs++;
+    return cb(ctx, sec, line, c, line + vs, llen - vs);
+}
+
+/* 返回 0 成功；-1 结构非法；-2 OOM */
+static int jar_parse(const uint8_t *p, size_t n, jar_cb cb, void *ctx)
+{
+    uint8_t *line = (uint8_t *)malloc(n ? n : 1);
+    size_t llen = 0, i = 0;
+    int sec = 0, rc = 0;
+
+    if (!line) return -2;
+    while (i < n) {
+        size_t s = i, e, plen;
+        while (i < n && p[i] != '\n') i++;
+        e = i;
+        if (i < n) i++;
+        if (e > s && p[e - 1] == '\r') e--;
+        plen = e - s;
+        if (plen == 0) {
+            if (llen) {
+                rc = jar_emit_line(ctx, cb, sec, line, llen);
+                llen = 0;
+                if (rc) goto done;
+            }
+            sec++;
+            continue;
+        }
+        if (p[s] == ' ' && llen) {
+            memcpy(line + llen, p + s + 1, plen - 1);
+            llen += plen - 1;
+            continue;
+        }
+        if (llen) {
+            rc = jar_emit_line(ctx, cb, sec, line, llen);
+            if (rc) goto done;
+        }
+        memcpy(line, p + s, plen);
+        llen = plen;
+    }
+    if (llen) rc = jar_emit_line(ctx, cb, sec, line, llen);
+done:
+    free(line);
+    return rc;
+}
+
+typedef struct {
+    char name[256];       /* 条目名（NUL 结尾，超长截断为非法） */
+    uint8_t dig[64];
+    size_t diglen;
+    int alg512;           /* 0=SHA-256，1=SHA-512 */
+} jent;
+
+typedef struct {
+    jent *v;
+    size_t n, cap;
+    /* section（sec==0）主属性 */
+    uint8_t main_dig[64];
+    size_t main_diglen;
+    int main_alg512;
+    int have_main;
+    /* 收集中 */
+    size_t sec;
+    char pend_name[256];
+    size_t pend_namelen;
+    int has_name;
+    uint8_t pend_dig[64];
+    size_t pend_diglen;
+    int pend_alg512;
+    int has_dig;
+    int err;
+} jmap;
+
+static void jmap_commit(jmap *m)
+{
+    if (m->has_name && m->has_dig) {
+        if (m->n == m->cap) {
+            size_t nc = m->cap ? m->cap * 2 : 64;
+            jent *nv = (jent *)realloc(m->v, nc * sizeof(jent));
+            if (!nv) { m->err = 1; goto clear; }
+            m->v = nv;
+            m->cap = nc;
+        }
+        {
+            jent *e = &m->v[m->n++];
+            memcpy(e->name, m->pend_name, m->pend_namelen + 1);
+            memcpy(e->dig, m->pend_dig, m->pend_diglen);
+            e->diglen = m->pend_diglen;
+            e->alg512 = m->pend_alg512;
+        }
+    } else if (m->has_name || m->has_dig) {
+        m->err = 1;                          /* Name/摘要缺一 → 结构非法，fail closed */
+    }
+clear:
+    m->has_name = 0;
+    m->has_dig = 0;
+    m->pend_namelen = 0;
+    m->pend_diglen = 0;
+}
+
+static int jmap_cb(void *ctx, int sec, const uint8_t *k, size_t kl,
+                   const uint8_t *v, size_t vl)
+{
+    jmap *m = (jmap *)ctx;
+    if ((size_t)sec != m->sec) {
+        jmap_commit(m);
+        m->sec = (size_t)sec;
+    }
+    if (kl == 4 && memcmp(k, "Name", 4) == 0) {
+        if (vl == 0 || vl >= sizeof m->pend_name) { m->err = 1; return -1; }
+        memcpy(m->pend_name, v, vl);
+        m->pend_name[vl] = 0;
+        m->pend_namelen = vl;
+        m->has_name = 1;
+        return 0;
+    }
+    if (sec == 0) {
+        /* 主 section：Digest-Manifest 属性（SF 用；MANIFEST.MF 主段无此属性） */
+        if (kl == 23 && memcmp(k, "SHA-256-Digest-Manifest", 23) == 0) {
+            if (b64_dec(v, vl, m->main_dig, &m->main_diglen) || m->main_diglen != 32) {
+                m->err = 1;
+                return -1;
+            }
+            m->main_alg512 = 0;
+            m->have_main = 1;
+        } else if (kl == 23 && memcmp(k, "SHA-512-Digest-Manifest", 23) == 0) {
+            if (b64_dec(v, vl, m->main_dig, &m->main_diglen) || m->main_diglen != 64) {
+                m->err = 1;
+                return -1;
+            }
+            m->main_alg512 = 1;
+            m->have_main = 1;
+        }
+        return 0;
+    }
+    if (kl == 14 && memcmp(k, "SHA-256-Digest", 14) == 0) {
+        if (!m->has_name || m->has_dig) { m->err = 1; return -1; }
+        if (b64_dec(v, vl, m->pend_dig, &m->pend_diglen) || m->pend_diglen != 32) {
+            m->err = 1;
+            return -1;
+        }
+        m->pend_alg512 = 0;
+        m->has_dig = 1;
+        return 0;
+    }
+    if (kl == 14 && memcmp(k, "SHA-512-Digest", 14) == 0) {
+        if (!m->has_name || m->has_dig) { m->err = 1; return -1; }
+        if (b64_dec(v, vl, m->pend_dig, &m->pend_diglen) || m->pend_diglen != 64) {
+            m->err = 1;
+            return -1;
+        }
+        m->pend_alg512 = 1;
+        m->has_dig = 1;
+        return 0;
+    }
+    /* 其余属性忽略（Manifest-Version / Created-By / X-Android-APK-Signed 等） */
+    return 0;
+}
+
+static int name_cmp(size_t al, const uint8_t *a, size_t bl, const uint8_t *b)
+{
+    size_t m = al < bl ? al : bl;
+    int r = memcmp(a, b, m);
+    if (r) return r;
+    return al < bl ? -1 : (al > bl ? 1 : 0);
+}
+
+static int jent_cmp(const void *a, const void *b)
+{
+    const jent *x = (const jent *)a, *y = (const jent *)b;
+    return name_cmp(strlen(x->name), (const uint8_t *)x->name,
+                    strlen(y->name), (const uint8_t *)y->name);
+}
+
+static void jmap_sort(jmap *m) { qsort(m->v, m->n, sizeof(jent), jent_cmp); }
+
+static jent *jmap_find(jmap *m, const uint8_t *name, size_t nlen)
+{
+    size_t lo = 0, hi = m->n;
+    while (lo < hi) {
+        size_t mid = lo + (hi - lo) / 2;
+        jent *e = &m->v[mid];
+        int r = name_cmp(nlen, name, strlen(e->name), (const uint8_t *)e->name);
+        if (r == 0) return e;
+        if (r < 0) hi = mid; else lo = mid + 1;
+    }
+    return NULL;
+}
+
+/* ---------- 全部普通条目名收集（供反向覆盖检查） ---------- */
+
+typedef struct { const uint8_t *p; size_t len; } nref;
+
+typedef struct {
+    nref *v;
+    size_t n, cap;
+    uint8_t *buf;
+    size_t blen, bcap;
+} namelist;
+
+static int namelist_add(namelist *L, const uint8_t *n, size_t l)
+{
+    if (memchr(n, 0, l)) return -1;              /* 名内 NUL：病态，fail closed */
+    if (L->n == L->cap) {
+        size_t nc = L->cap ? L->cap * 2 : 256;
+        nref *nv = (nref *)realloc(L->v, nc * sizeof(nref));
+        if (!nv) return -1;
+        L->v = nv;
+        L->cap = nc;
+    }
+    if (L->blen + l + 1 > L->bcap) {
+        size_t nc = L->bcap ? L->bcap * 2 : 4096;
+        while (nc < L->blen + l + 1) nc *= 2;
+        uint8_t *nb = (uint8_t *)realloc(L->buf, nc);
+        if (!nb) return -1;
+        L->buf = nb;
+        L->bcap = nc;
+    }
+    memcpy(L->buf + L->blen, n, l);
+    L->buf[L->blen + l] = 0;
+    L->v[L->n].p = L->buf + L->blen;
+    L->v[L->n].len = l;
+    L->blen += l + 1;
+    L->n++;
+    return 0;
+}
+
+static int nref_cmp(const void *a, const void *b)
+{
+    const nref *x = (const nref *)a, *y = (const nref *)b;
+    return name_cmp(x->len, x->p, y->len, y->p);
+}
+
+static void namelist_sort(namelist *L) { qsort(L->v, L->n, sizeof(nref), nref_cmp); }
+
+static int namelist_has(const namelist *L, const uint8_t *n, size_t l)
+{
+    size_t lo = 0, hi = L->n;
+    while (lo < hi) {
+        size_t mid = lo + (hi - lo) / 2;
+        const nref *e = &L->v[mid];
+        int r = name_cmp(l, n, e->len, e->p);
+        if (r == 0) return 1;
+        if (r < 0) hi = mid; else lo = mid + 1;
+    }
+    return 0;
+}
+
+/* ---------- v1 签名文件识别（与 Android JarVerifier 一致：不区分大小写） ---------- */
+
+static int ieql(const uint8_t *a, size_t al, const char *b)
+{
+    size_t i, bl = strlen(b);
+    if (al != bl) return 0;
+    for (i = 0; i < al; i++) {
+        uint8_t x = a[i], y = (uint8_t)b[i];
+        if (x >= 'A' && x <= 'Z') x = (uint8_t)(x - 'A' + 'a');
+        if (y >= 'A' && y <= 'Z') y = (uint8_t)(y - 'A' + 'a');
+        if (x != y) return 0;
+    }
+    return 1;
+}
+
+/* META-INF/ 下 *.SF / *.RSA / *.DSA / *.EC（任意层级，与 Android 一致） */
+static int name_is_sigfile(const uint8_t *n, size_t l)
+{
+    static const char *sufs[] = { ".SF", ".RSA", ".DSA", ".EC" };
+    size_t i;
+    if (l < 9 + 3 + 1) return 0;
+    for (i = 0; i < 9; i++) {
+        uint8_t x = n[i], y = (uint8_t)"META-INF/"[i];
+        if (x >= 'A' && x <= 'Z') x = (uint8_t)(x - 'A' + 'a');
+        if (y >= 'A' && y <= 'Z') y = (uint8_t)(y - 'A' + 'a');
+        if (x != y) return 0;
+    }
+    for (i = 0; i < 4; i++) {
+        size_t sl = strlen(sufs[i]);
+        if (l > 9 + sl && ieql(n + l - sl, sl, sufs[i])) return 1;
+    }
+    return 0;
+}
+
+/* ---------- v1 主流程 ---------- */
+
+void sc_hex32(const uint8_t in[32], char out[65]);   /* 定义在 §8（诊断输出） */
+
+typedef struct {
+    int have_manifest, have_sf, have_bk;
+    char sf_base[256], bk_base[256];     /* 去掉 META-INF/ 前缀与扩展名的基名 */
+    cent_info man_ci, sf_ci, bk_ci;
+    namelist names;
+} v1walk;
+
+/* 提取 "META-INF/xxx.SF" 的基名 "xxx"（原样大小写） */
+static void v1_base_of(const uint8_t *n, size_t l, char *out, size_t outcap)
+{
+    size_t i, st = 9, en = l;
+    while (en > st && n[en - 1] != '.') en--;
+    en--;                                     /* 去掉扩展名点 */
+    if (en < st || en - st >= outcap) { out[0] = 0; return; }
+    for (i = st; i < en; i++) out[i - st] = (char)n[i];
+    out[en - st] = 0;
+}
+
+static int v1_first_cb(void *ctx, const uint8_t *name, size_t nlen, const cent_info *ci)
+{
+    v1walk *W = (v1walk *)ctx;
+
+    if (nlen && name[nlen - 1] == '/') return 0;              /* 目录：不参与覆盖 */
+    if (nlen == 9 && ieql(name, nlen, "META-INF/")) return 0;
+    if (ieql(name, nlen, "META-INF/MANIFEST.MF")) {
+        W->have_manifest = 1;
+        W->man_ci = *ci;
+        return 0;
+    }
+    if (name_is_sigfile(name, nlen)) {
+        size_t i;
+        int is_sf = nlen > 12 && ieql(name + nlen - 3, 3, ".SF");
+        int is_blk = 0;
+        for (i = 0; i < 3; i++) {
+            static const char *bs[] = { ".RSA", ".DSA", ".EC" };
+            size_t sl = strlen(bs[i]);
+            if (nlen > 9 + sl && ieql(name + nlen - sl, sl, bs[i])) { is_blk = 1; break; }
+        }
+        if (is_sf && !W->have_sf) {
+            W->have_sf = 1;
+            W->sf_ci = *ci;
+            v1_base_of(name, nlen, W->sf_base, sizeof W->sf_base);
+        } else if (is_blk && !W->have_bk) {
+            W->have_bk = 1;
+            W->bk_ci = *ci;
+            v1_base_of(name, nlen, W->bk_base, sizeof W->bk_base);
+        }
+        return 0;                                             /* 签名文件不参与覆盖 */
+    }
+    if (namelist_add(&W->names, name, nlen)) return SC_E_NOMEM;
+    return 0;
+}
+
+typedef struct {
+    int fd;
+    jmap *man;
+    const char *err;
+} v1hash;
+
+static int v1_hash_cb(void *ctx, const uint8_t *name, size_t nlen, const cent_info *ci)
+{
+    v1hash *H = (v1hash *)ctx;
+    jent *e;
+    uint8_t digest[64];
+
+    if (nlen && name[nlen - 1] == '/') return 0;
+    if (ieql(name, nlen, "META-INF/MANIFEST.MF")) return 0;
+    if (name_is_sigfile(name, nlen)) return 0;
+    e = jmap_find(H->man, name, nlen);
+    if (!e) {
+        H->err = "APK entry not covered by manifest (v1)";
+        return SC_E_VERIFY_FAILED;
+    }
+    {
+        int rc = entry_hash256(H->fd, ci, digest);
+        if (rc) {
+            H->err = "entry content read/inflate failed (v1)";
+            return rc;
+        }
+    }
+    if ((e->alg512 == 0) != (e->diglen == 32)) { H->err = "manifest digest alg inconsistent"; return SC_E_PARSE_ERROR; }
+    if (memcmp(digest, e->dig, e->diglen) != 0) {
+        H->err = "entry content digest mismatch (v1 tampered)";
+        return SC_E_VERIFY_FAILED;
+    }
+    return 0;
+}
+
+static int verify_v1(int fd, uint64_t cdOff, uint64_t cdSize,
+                     const uint8_t anchor[32], const char **detail)
+{
+    const char *dd = "";
+    int rc = SC_E_PARSE_ERROR;
+    v1walk W;
+    uint8_t *man = NULL, *sf = NULL, *pk = NULL, *setbuf = NULL;
+    size_t manN = 0, sfN = 0, pkN = 0, setn = 0;
+    pk7_sig k;
+    jmap M, S;
+    dv spki, mod, md;
+    uint32_t exp;
+    uint8_t certSha[32], sfHash[64];
+    int sf_covered = 0;
+    size_t i;
+
+    memset(&W, 0, sizeof W);
+    memset(&M, 0, sizeof M);
+    memset(&S, 0, sizeof S);
+
+    /* ---- 1. 定位签名文件 + 收集普通条目名 ---- */
+    rc = cd_walk(fd, cdOff, cdSize, v1_first_cb, &W);
+    if (rc) { dd = "central directory walk failed (v1)"; goto done; }
+    if (!W.have_manifest || !W.have_sf || !W.have_bk) {
+        rc = SC_E_NO_V2_BLOCK;
+        dd = "no APK signing block and no complete v1 signature files";
+        goto done;
+    }
+    /* SF 与签名块基名必须配对 */
+    {
+        size_t bl = strlen(W.sf_base);
+        if (bl != strlen(W.bk_base) || memcmp(W.sf_base, W.bk_base, bl) != 0) {
+            rc = SC_E_PARSE_ERROR;
+            dd = "v1 .SF/.RSA basename mismatch";
+            goto done;
+        }
+    }
+    namelist_sort(&W.names);
+
+    /* ---- 2. 读 manifest / SF / PKCS#7 ---- */
+    if ((rc = entry_read(fd, &W.man_ci, 32u << 20, &man, &manN))) {
+        dd = "manifest read failed"; goto done;
+    }
+    if ((rc = entry_read(fd, &W.sf_ci, 32u << 20, &sf, &sfN))) {
+        dd = "signature file read failed"; goto done;
+    }
+    if ((rc = entry_read(fd, &W.bk_ci, 1u << 20, &pk, &pkN))) {
+        dd = "signature block read failed"; goto done;
+    }
+
+    /* ---- 3. PKCS#7 → 证书指纹 == 锚 ---- */
+    if (pk7_parse(pk, pkN, &k)) {
+        rc = SC_E_PARSE_ERROR; dd = "v1 PKCS#7 parse failed";
+        goto done;
+    }
+    sha256_buf(k.cert, k.cert_len, certSha);
+    if (memcmp(certSha, anchor, 32) != 0) {
+        static char msg[128];
+        char hex[65];
+        sc_hex32(certSha, hex);
+        snprintf(msg, sizeof msg, "v1 signing cert mismatch: got %s", hex);
+        rc = SC_E_CERT_MISMATCH; dd = msg;
+        goto done;
+    }
+    if (cert_subject_spki(k.cert, k.cert_len, &spki)) {
+        rc = SC_E_PARSE_ERROR; dd = "v1 cert SPKI parse failed";
+        goto done;
+    }
+    if (parse_spki_rsa(spki.p, spki.len, &mod, &exp)) {
+        rc = SC_E_NO_USABLE_SIG; dd = "v1 signer key is not RSA";
+        goto done;
+    }
+
+    /* ---- 4. 验 SF 签名（RSA PKCS#1 v1.5，兼容有/无 signedAttrs） ---- */
+    if (k.has_attrs) {
+        size_t hl = k.use_sha512 ? 64u : 32u;
+        int rv;
+        if (pk7_find_msg_digest(&k, &md)) {
+            rc = SC_E_PARSE_ERROR; dd = "v1 signedAttrs missing messageDigest";
+            goto done;
+        }
+        if (md.len != hl) {
+            rc = SC_E_VERIFY_FAILED; dd = "v1 SF messageDigest length mismatch";
+            goto done;
+        }
+        if (k.use_sha512) sha512_buf(sf, sfN, sfHash); else sha256_buf(sf, sfN, sfHash);
+        if (memcmp(md.p, sfHash, hl) != 0) {
+            rc = SC_E_VERIFY_FAILED; dd = "v1 SF digest attr mismatch";
+            goto done;
+        }
+        setbuf = pk7_attrs_as_set(&k, &setn);
+        if (!setbuf) { rc = SC_E_NOMEM; dd = "oom"; goto done; }
+        rv = rsa_pkcs1_verify(k.sig, k.sig_len, setbuf, setn, mod.p, mod.len, exp, k.use_sha512);
+        free(setbuf); setbuf = NULL;
+        if (rv) { rc = SC_E_VERIFY_FAILED; dd = "v1 SF signature invalid"; goto done; }
+    } else {
+        if (rsa_pkcs1_verify(k.sig, k.sig_len, sf, sfN, mod.p, mod.len, exp, k.use_sha512)) {
+            rc = SC_E_VERIFY_FAILED; dd = "v1 SF signature invalid";
+            goto done;
+        }
+    }
+
+    /* ---- 5. 解析 manifest 与 SF ---- */
+    if (jar_parse(man, manN, jmap_cb, &M) || M.err) {
+        rc = SC_E_PARSE_ERROR; dd = "manifest malformed (v1)";
+        goto done;
+    }
+    jmap_commit(&M);
+    jmap_sort(&M);
+    if (jar_parse(sf, sfN, jmap_cb, &S) || S.err) {
+        rc = SC_E_PARSE_ERROR; dd = "signature file malformed (v1)";
+        goto done;
+    }
+    jmap_commit(&S);
+    jmap_sort(&S);
+    if (M.n == 0) {
+        rc = SC_E_PARSE_ERROR; dd = "manifest has no digest entries (v1)";
+        goto done;
+    }
+
+    /* ---- 6. SF 主段 Digest-Manifest → 认证整个 manifest ---- */
+    if (S.have_main) {
+        size_t hl = S.main_alg512 ? 64u : 32u;
+        uint8_t mh[64];
+        if (S.main_alg512) sha512_buf(man, manN, mh); else sha256_buf(man, manN, mh);
+        if (memcmp(mh, S.main_dig, hl) != 0) {
+            rc = SC_E_VERIFY_FAILED; dd = "manifest digest mismatch vs SF (v1 tampered)";
+            goto done;
+        }
+        sf_covered = 1;
+    }
+    if (!sf_covered) {
+        /* 主段摘要缺失（罕见）：退化为逐条目比对 manifest ↔ SF 摘要 */
+        for (i = 0; i < M.n; i++) {
+            jent *e = &M.v[i];
+            jent *s2 = jmap_find(&S, (const uint8_t *)e->name, strlen(e->name));
+            if (!s2 || s2->alg512 != e->alg512 || s2->diglen != e->diglen ||
+                memcmp(s2->dig, e->dig, e->diglen) != 0) {
+                rc = SC_E_VERIFY_FAILED;
+                dd = "manifest entry digest differs from SF (v1)";
+                goto done;
+            }
+        }
+    }
+
+    /* ---- 7. 反向覆盖：manifest 每个文件条目必须存在于 zip ---- */
+    for (i = 0; i < M.n; i++) {
+        jent *e = &M.v[i];
+        size_t el = strlen(e->name);
+        if (el && e->name[el - 1] == '/') continue;         /* 目录条目：跳过 */
+        if (!namelist_has(&W.names, (const uint8_t *)e->name, el)) {
+            rc = SC_E_VERIFY_FAILED;
+            dd = "manifest entry missing in APK (v1)";
+            goto done;
+        }
+    }
+
+    /* ---- 8. 逐条目内容摘要（第二遍 walk，双向覆盖 + inflate 实测） ---- */
+    {
+        v1hash H;
+        H.fd = fd;
+        H.man = &M;
+        H.err = NULL;
+        rc = cd_walk(fd, cdOff, cdSize, v1_hash_cb, &H);
+        if (rc) {
+            dd = H.err ? H.err : "entry verification failed (v1)";
+            goto done;
+        }
+    }
+
+    rc = SC_OK;
+    dd = "v1 (jarsigner) signature and content digests valid (native)";
+done:
+    free(man);
+    free(sf);
+    free(pk);
+    free(setbuf);
+    free(M.v);
+    free(S.v);
+    free(W.names.v);
+    free(W.names.buf);
+    if (detail) *detail = dd;
+    return rc;
+}
+
+/* ============================================================
  * 8. 主校验流程
  * ============================================================ */
 
@@ -1061,7 +2248,7 @@ int sc_verify_apk(const char *apk_path, const uint8_t expected_anchor[32],
             uint8_t footer[24];
             if (pread(fd, footer, 24, (off_t)cdOff - 24) != 24 ||
                 memcmp(footer + 8, APK_SIG_BLOCK_MAGIC, 16) != 0) {
-                rc = SC_E_NO_V2_BLOCK; d = "no APK Signing Block magic"; goto cleanup;
+                rc = verify_v1(fd, cdOff, cdSize, anchor, &d); goto cleanup;
             }
             blockLen = rd_u64le(footer);
         }
@@ -1078,7 +2265,7 @@ int sc_verify_apk(const char *apk_path, const uint8_t expected_anchor[32],
             rc = SC_E_PARSE_ERROR; d = "signing block length mismatch"; goto cleanup;
         }
         if (find_v2_block(block, (size_t)blockLen, &v2)) {
-            rc = SC_E_NO_V2_BLOCK; d = "no v2 signature block (0x7109871a)"; goto cleanup;
+            rc = verify_v1(fd, cdOff, cdSize, anchor, &d); goto cleanup;
         }
 
         /* ---- signer: [signersSeq][ signer: [signedData][signatures][publicKey] ] ---- */

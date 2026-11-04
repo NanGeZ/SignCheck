@@ -111,9 +111,23 @@ public final class SignGate {
         try {
             int nativeSt = SignCheck.verifyNative(ctx);
             int nativeAuthoritative = SignCheck.nativeLastStatus();
-            boolean javaOk = verifyJava(ctx);
-            boolean pmOk = verifyPackageManager(ctx);
-            boolean binderOk = verifyBinder(ctx);
+
+            ApkV2SignerVerifier.Result jr = null;
+            try {
+                jr = ApkV2SignerVerifier.verify(
+                        new java.io.File(ctx.getApplicationInfo().sourceDir),
+                        SignCheck.expectedAnchorHex());
+            } catch (Throwable t) {
+                /* 保持 jr == null，诊断串里呈现 err */
+            }
+
+            String expected = SignCheck.expectedAnchorHex();
+            String pmSha = pmCertSha256(ctx);        // null = 通道异常/拿不到证书
+            String binderSha = binderCertSha256(ctx); // null = 通道不可用（降级放行）
+
+            boolean javaOk = jr != null && jr.status == ApkV2SignerVerifier.Status.PASS;
+            boolean pmOk = expected.equals(pmSha);
+            boolean binderOk = binderSha == null || expected.equals(binderSha);
 
             sNativeStatus.set(nativeSt);
             sJavaTrusted.set(javaOk);
@@ -123,14 +137,39 @@ public final class SignGate {
                     && nativeAuthoritative == nativeSt          // ① 与 so 内权威副本一致
                     && javaOk && pmOk && binderOk;
             if (ok) return;
-            failClosed("native=" + nativeSt + " auth=" + nativeAuthoritative
-                    + " java=" + javaOk + " pm=" + pmOk + " binder=" + binderOk);
+            failClosed(ctx, "native=" + statusName(nativeSt) + "/" + nativeSt
+                    + " auth=" + nativeAuthoritative
+                    + " java=" + (jr == null ? "err" : jr.status.name() + "(" + jr.detail + ")")
+                    + " pm=" + diag(pmSha, expected)
+                    + " binder=" + diag(binderSha, expected)
+                    + " anchor=" + expected);
         } catch (Throwable t) {
-            failClosed("exception: " + t);
+            failClosed(ctx, "exception: " + android.util.Log.getStackTraceString(t));
         }
     }
 
-    /** 通道②：Java 第二实现全量校验（复用 ApkV2SignerVerifier）。 */
+    private static String diag(String sha, String expected) {
+        if (sha == null) return "unavailable";
+        if (expected.equals(sha)) return "match";
+        return "MISMATCH:" + sha;
+    }
+
+    private static String statusName(int st) {
+        switch (st) {
+            case SignCheck.SC_OK: return "OK";
+            case SignCheck.SC_E_CERT_MISMATCH: return "CERT_MISMATCH";
+            case SignCheck.SC_E_NO_V2_BLOCK: return "NO_V2_BLOCK";
+            case SignCheck.SC_E_VERIFY_FAILED: return "VERIFY_FAILED";
+            case SignCheck.SC_E_PARSE_ERROR: return "PARSE_ERROR";
+            case SignCheck.SC_E_IO_ERROR: return "IO_ERROR";
+            case SignCheck.SC_E_ANCHOR_MISMATCH: return "ANCHOR_MISMATCH";
+            case SignCheck.SC_E_NO_USABLE_SIG: return "NO_USABLE_SIG";
+            case SignCheck.SC_E_NOMEM: return "NOMEM";
+            default: return "SC_" + st;
+        }
+    }
+
+    /** 通道②：Java 第二实现全量校验（v2 / v1 分流，见 ApkV2SignerVerifier）。 */
     private static boolean verifyJava(Context ctx) {
         try {
             ApkV2SignerVerifier.Result r = ApkV2SignerVerifier.verify(
@@ -142,12 +181,12 @@ public final class SignGate {
         }
     }
 
-    /** 通道③：框架常规通道。 */
-    private static boolean verifyPackageManager(Context ctx) {
+    /** 通道③：框架常规通道。返回实际证书 SHA-256；异常/拿不到返回 null。 */
+    private static String pmCertSha256(Context ctx) {
         try {
             PackageManager pm = ctx.getPackageManager();
             PackageInfo pi = pm.getPackageInfo(ctx.getPackageName(), PackageManager.GET_SIGNATURES);
-            if (pi == null) return false;
+            if (pi == null) return null;
             byte[] cert = null;
             if (pi.signatures != null && pi.signatures.length > 0) {
                 cert = pi.signatures[0].toByteArray();
@@ -156,22 +195,19 @@ public final class SignGate {
                 Signature[] hist = si.getSigningCertificateHistory();
                 if (hist != null && hist.length > 0) cert = hist[0].toByteArray();
             }
-            if (cert == null) return false;
-            String sha = toHex(MessageDigest.getInstance("SHA-256").digest(cert));
-            return SignCheck.expectedAnchorHex().equals(sha);
+            if (cert == null) return null;
+            return toHex(MessageDigest.getInstance("SHA-256").digest(cert));
         } catch (Throwable t) {
-            return false;
+            return null;
         }
     }
 
     /** 通道④：裸 Binder 直连。通道不可用（null）降级放行，拿到结果必须匹配。 */
-    private static boolean verifyBinder(Context ctx) {
+    private static String binderCertSha256(Context ctx) {
         try {
-            String sha = RawBinderSignReader.readSigningCertSha256(ctx.getPackageName());
-            if (sha == null) return true;   // 降级：通道不可用不计入失败
-            return SignCheck.expectedAnchorHex().equals(sha);
+            return RawBinderSignReader.readSigningCertSha256(ctx.getPackageName());
         } catch (Throwable t) {
-            return true;
+            return null;
         }
     }
 
@@ -188,7 +224,39 @@ public final class SignGate {
      * （同包可见：AppProxyFactory 在无 Context 的截胡场景下也要能 fail closed。）
      */
     static void failClosed(String reason) {
+        failClosed(null, reason);
+    }
+
+    /**
+     * fail closed（带 Context 版）：先在屏幕上显示失败原因（Toast）并写 logcat，
+     * 再终止进程。诊断信息对用户可见是定位设备端问题的关键——静默杀进程
+     * 只会留下"白屏"，无法区分四个通道到底哪一通道失败。
+     */
+    static void failClosed(Context ctx, String reason) {
+        final String msg = "签名校验失败：进程即将退出\n" + reason;
         try { Log.e(TAG, "SIGN CHECK FAILED, killing process: " + reason); } catch (Throwable ignore) { }
+        /* 专用线程自备 Looper 展示 Toast（主线程此时可能阻塞在 attachBaseContext，
+         * 无法处理 Toast 的消息队列；后台 Looper 线程可独立完成 binder 展示调用）。 */
+        final java.util.concurrent.CountDownLatch shown = new java.util.concurrent.CountDownLatch(1);
+        Thread doom = new Thread(new Runnable() {
+            @Override public void run() {
+                try {
+                    android.os.Looper.prepare();
+                    if (ctx != null) {
+                        android.widget.Toast.makeText(ctx.getApplicationContext(), msg,
+                                android.widget.Toast.LENGTH_LONG).show();
+                    }
+                    shown.countDown();
+                    android.os.Looper.loop();   // 处理 Toast 生命周期回调
+                } catch (Throwable ignored) {
+                    shown.countDown();
+                }
+            }
+        }, "sign-gate-doom");
+        doom.start();
+        try { shown.await(2, java.util.concurrent.TimeUnit.SECONDS); } catch (InterruptedException ignore) { }
+        /* 给 Toast 至少 ~2s 的展示窗口（用户可读出失败通道），然后杀进程 */
+        try { Thread.sleep(2500); } catch (InterruptedException ignore) { }
         Process.killProcess(Process.myPid());
         System.exit(10);
     }

@@ -75,40 +75,45 @@ public final class V2SignBlock {
             long cdOff = le32(eocd, 16);
             long cdSize = le32(eocd, 12);
 
-            if (cdOff < 32) {
-                return new Info(null, null, hasV1, false, false, -1);
-            }
-            byte[] footer = new byte[24];
-            raf.seek(cdOff - 24);
-            raf.readFully(footer);
-            for (int i = 0; i < 16; i++) {
-                if (footer[8 + i] != SIG_BLOCK_MAGIC[i]) {
-                    return new Info(null, null, hasV1, false, false, -1);
-                }
-            }
-            long blockLen = le64(footer, 0);
-            long blockOff = cdOff - blockLen - 8;
-            if (blockLen < 24 || blockOff < 0) throw new IOException("signing block size out of range");
-            byte[] block = new byte[(int) (blockLen + 8)];
-            raf.seek(blockOff);
-            raf.readFully(block);
-            if (le64(block, 0) != blockLen) throw new IOException("signing block length mismatch");
-
             boolean hasV2 = false, hasV3 = false;
             byte[] v2Value = null;
-            ByteBuffer b = ByteBuffer.wrap(block, 8, block.length - 8 - 24).order(ByteOrder.LITTLE_ENDIAN);
-            while (b.remaining() >= 12) {
-                long pairLen = b.getLong();
-                if (pairLen < 4 || pairLen > b.remaining()) break;
-                int id = b.getInt();
-                int valueLen = (int) pairLen - 4;
-                byte[] value = new byte[valueLen];
-                b.get(value);
-                if (id == ID_V2) { hasV2 = true; if (v2Value == null) v2Value = value; }
-                else if (id == ID_V3) hasV3 = true;
-                else if (id == ID_VERITY) { /* v2 verity, 同属 v2 系 */ }
+            if (cdOff >= 32) {
+                /* 有 signing block 才解析；纯 v1 包无块，直接落到下方 v1 取证 */
+                byte[] footer = new byte[24];
+                raf.seek(cdOff - 24);
+                raf.readFully(footer);
+                boolean magicOk = true;
+                for (int i = 0; i < 16; i++) {
+                    if (footer[8 + i] != SIG_BLOCK_MAGIC[i]) { magicOk = false; break; }
+                }
+                if (magicOk) {
+                    long blockLen = le64(footer, 0);
+                    long blockOff = cdOff - blockLen - 8;
+                    if (blockLen < 24 || blockOff < 0) throw new IOException("signing block size out of range");
+                    byte[] block = new byte[(int) (blockLen + 8)];
+                    raf.seek(blockOff);
+                    raf.readFully(block);
+                    if (le64(block, 0) != blockLen) throw new IOException("signing block length mismatch");
+
+                    ByteBuffer b = ByteBuffer.wrap(block, 8, block.length - 8 - 24).order(ByteOrder.LITTLE_ENDIAN);
+                    while (b.remaining() >= 12) {
+                        long pairLen = b.getLong();
+                        if (pairLen < 4 || pairLen > b.remaining()) break;
+                        int id = b.getInt();
+                        int valueLen = (int) pairLen - 4;
+                        byte[] value = new byte[valueLen];
+                        b.get(value);
+                        if (id == ID_V2) { hasV2 = true; if (v2Value == null) v2Value = value; }
+                        else if (id == ID_V3) hasV3 = true;
+                        else if (id == ID_VERITY) { /* v2 verity, 同属 v2 系 */ }
+                    }
+                }
             }
             if (!hasV2) {
+                /* 纯 v1（jarsigner）包：从 META-INF/*.RSA 的 PKCS#7 里取 cert[0] 做默认锚。
+                 * 运行时校验链（native verify_v1 + ApkV1JarVerifier）支持 SHA-256/512 RSA。 */
+                Info v1 = v1OnlyInfo(apk, hasV1, hasV3);
+                if (v1 != null) return v1;
                 return new Info(null, null, hasV1, false, hasV3, -1);
             }
 
@@ -127,6 +132,186 @@ public final class V2SignBlock {
     private static final class Signer {
         byte[] certDer;
         int rsaSigAlgId = -1;
+    }
+
+    /**
+     * 纯 v1 取证：META-INF/*.RSA（PKCS#7 SignedData）→ certificates[0] DER + SHA-256。
+     * rsaSigAlgId 记 0x0103（PKCS#1-SHA256，运行时 v1 校验链支持的算法族标记）；
+     * 非 RSA 证书由 ApkInjector 的证书公钥算法门禁拒绝。
+     * 解析不到可用证书返回 null（调用方回落为无锚 Info）。
+     */
+    private static Info v1OnlyInfo(File apk, boolean hasV1, boolean hasV3) throws IOException {
+        if (!hasV1) return null;
+        try (ZipFile zf = new ZipFile(apk)) {
+            for (Enumeration<? extends ZipEntry> en = zf.entries(); en.hasMoreElements(); ) {
+                ZipEntry ze = en.nextElement();
+                String n = ze.getName();
+                String u = n.toUpperCase(java.util.Locale.ROOT);
+                if (!u.startsWith("META-INF/") || u.endsWith("/") || !u.endsWith(".RSA")) continue;
+                byte[] block = readAll(zf, ze);
+                byte[] certDer = firstCertFromPkcs7(block);
+                if (certDer == null) continue;
+                String sha = toHex(MessageDigest.getInstance("SHA-256").digest(certDer));
+                return new Info(certDer, sha, true, false, hasV3, 0x0103);
+            }
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IOException("SHA-256 unavailable", e);
+        }
+        return null;
+    }
+
+    private static byte[] readAll(ZipFile zf, ZipEntry e) throws IOException {
+        try (java.io.InputStream in = zf.getInputStream(e)) {
+            java.io.ByteArrayOutputStream bos = new java.io.ByteArrayOutputStream(1 << 12);
+            byte[] buf = new byte[1 << 12];
+            int rd;
+            while ((rd = in.read(buf)) > 0) bos.write(buf, 0, rd);
+            return bos.toByteArray();
+        }
+    }
+
+    /** PKCS#7 SignedData → certificates [0] 里第一个证书的 DER（线性最小解析，仅定位不验签）。 */
+    private static byte[] firstCertFromPkcs7(byte[] d) {
+        try {
+            d = berNormalize(d);                        // JDK jarsigner 输出为 BER 不定长
+            D c = new D(d);
+            c.seq();                                    // ContentInfo → 内容起点
+            if (!"1.2.840.113549.1.7.2".equals(c.oid())) return null;   // 非 SignedData
+            c.expect(0xA0); c.len();                    // [0] EXPLICIT → SignedData SEQ 起点
+            c.seq();                                    // SignedData → 内容起点
+            c.expect(0x02); c.skip();                   // version
+            c.expect(0x31); c.skip();                   // digestAlgorithmIdentifiers
+            c.expect(0x30); c.skip();                   // encapContentInfo（整 TLV 跳过）
+            if (c.peek() != 0xA0) return null;          // certificates [0] IMPLICIT
+            c.expect(0xA0); c.len();                    // → 证书拼接区起点（p = 首证书 TLV tag）
+            int certStart = c.p;
+            int certLen = c.tlvTotal();                 // 第一个证书 TLV 总长
+            if (certStart + certLen > d.length) return null;
+            byte[] out = new byte[certLen];
+            System.arraycopy(d, certStart, out, 0, certLen);
+            return out;
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /** BER 不定长（0x80...00 00）→ DER 定长归一化；构造型递归。 */
+    private static byte[] berNormalize(byte[] d) throws IOException {
+        int[] pos = {0};
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(d.length);
+        while (pos[0] < d.length) out.write(normTlv(d, pos));
+        return out.toByteArray();
+    }
+
+    private static byte[] normTlv(byte[] d, int[] pos) throws IOException {
+        int tag = d[pos[0]++] & 0xFF;
+        int lb = d[pos[0]++] & 0xFF;
+        byte[] body;
+        if (lb == 0x80) {
+            java.io.ByteArrayOutputStream children = new java.io.ByteArrayOutputStream();
+            while (!(d[pos[0]] == 0 && d[pos[0] + 1] == 0)) children.write(normTlv(d, pos));
+            pos[0] += 2;                               // 跳过 EOC 00 00
+            body = children.toByteArray();
+        } else {
+            int len;
+            if (lb < 0x80) len = lb;
+            else {
+                int n = lb & 0x7F;
+                len = 0;
+                for (int i = 0; i < n; i++) len = (len << 8) | (d[pos[0]++] & 0xFF);
+            }
+            body = java.util.Arrays.copyOfRange(d, pos[0], pos[0] + len);
+            pos[0] += len;
+            if ((tag & 0x20) != 0) {                   // 构造型：递归归一化子元素
+                int[] cp = {0};
+                java.io.ByteArrayOutputStream children = new java.io.ByteArrayOutputStream();
+                while (cp[0] < body.length) children.write(normTlv(body, cp));
+                body = children.toByteArray();
+            }
+        }
+        java.io.ByteArrayOutputStream out = new java.io.ByteArrayOutputStream(body.length + 8);
+        out.write(tag);
+        out.write(definiteLen(body.length));
+        out.write(body, 0, body.length);
+        return out.toByteArray();
+    }
+
+    private static byte[] definiteLen(int len) {
+        if (len < 0x80) return new byte[]{(byte) len};
+        int n = 0;
+        for (int v = len; v > 0; v >>= 8) n++;
+        byte[] out = new byte[1 + n];
+        out[0] = (byte) (0x80 | n);
+        for (int i = n - 1; i >= 0; i--) out[1 + i] = (byte) ((len >> (8 * (n - 1 - i))) & 0xFF);
+        return out;
+    }
+
+    /** PKCS#7 最小 DER 游标：线性 tag/length 定位。 */
+    private static final class D {
+        final byte[] d;
+        int p;
+
+        D(byte[] d) { this.d = d; }
+
+        int peek() { return p < d.length ? d[p] & 0xFF : -1; }
+
+        void expect(int tag) throws IOException {
+            if (peek() != tag) throw new IOException("DER tag mismatch @" + p);
+            p++;
+        }
+
+        int len() throws IOException {
+            if (p >= d.length) throw new IOException("DER truncated");
+            int b = d[p++] & 0xFF;
+            if (b < 0x80) return b;
+            int n = b & 0x7F;
+            if (n == 0 || n > 4) throw new IOException("bad DER length");
+            int v = 0;
+            for (int i = 0; i < n; i++) {
+                if (p >= d.length) throw new IOException("DER truncated");
+                v = (v << 8) | (d[p++] & 0xFF);
+            }
+            return v;
+        }
+
+        void skip() throws IOException {
+            int l = len();            /* 不能写 p += len()：复合赋值先取 p 旧值，副作用被覆盖 */
+            p += l;
+        }
+
+        void seq() throws IOException { expect(0x30); len(); }
+
+        /** 当前 TLV 的总长（tag + 长度编码 + 内容）；p 停在内容起点。 */
+        int tlvTotal() throws IOException {
+            int tagPos = p;
+            p++;
+            int l = len();
+            return (p - tagPos) + l;
+        }
+
+        /** 期望 0x06 OID 并解析内容为点分十进制。 */
+        String oid() throws IOException {
+            expect(0x06);
+            int l = len();
+            if (l <= 0 || p + l > d.length) throw new IOException("DER truncated");
+            StringBuilder sb = new StringBuilder();
+            long v = 0;
+            for (int i = 0; i < l; i++) {
+                int b = d[p + i] & 0xFF;
+                if (i == 0) {
+                    sb.append(b < 80 ? b / 40 : 2).append('.').append(b < 80 ? b % 40 : b - 80);
+                    v = 0;
+                } else if ((b & 0x80) != 0) {
+                    v = (v << 7) | (b & 0x7F);
+                } else {
+                    v = (v << 7) | (b & 0x7F);
+                    sb.append('.').append(v);
+                    v = 0;
+                }
+            }
+            p += l;
+            return sb.toString();
+        }
     }
 
     /** v2Value = length-prefixed signers 序列 → 第一 signer → signedData → certificates[0]，

@@ -58,6 +58,17 @@ public final class ApkV2SignerVerifier {
 
     /** @param expectedCertSha256 lowercase hex SHA-256 of the expected signing certificate. */
     public static Result verify(File apk, String expectedCertSha256) {
+        Result r = verifyV2(apk, expectedCertSha256);
+        if (r.status != Status.NO_V2_BLOCK) {
+            return r;
+        }
+        /* 无 v2 签名块 → 尝试 v1（JAR / jarsigner）全链验签（ApkV1JarVerifier）。
+         * 两者都无签名或 v1 也失败时，返回信息量更大的那个失败结果。 */
+        Result v1 = ApkV1JarVerifier.verify(apk, expectedCertSha256);
+        return v1.status == Status.NO_V2_BLOCK ? r : v1;
+    }
+
+    private static Result verifyV2(File apk, String expectedCertSha256) {
         try (RandomAccessFile raf = new RandomAccessFile(apk, "r")) {
             long fileSize = raf.length();
 

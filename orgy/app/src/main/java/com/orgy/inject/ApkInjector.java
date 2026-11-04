@@ -136,13 +136,17 @@ public final class ApkInjector {
 
         // ---- 3. dex 补丁 ----
         byte[] dex = payloadDex.clone();
-        AnchorPatcher.patchOnce(dex, AnchorPatcher.DEX_A, hexBytes(anchorA), "DEX_A");
-        AnchorPatcher.patchOnce(dex, AnchorPatcher.DEX_B, hexBytes(maskB), "DEX_B");
+        AnchorPatcher.patchOnce(dex, AnchorPatcher.DEX_A,
+                AnchorPatcher.withRegion(AnchorPatcher.DEX_A, hexBytes(anchorA)), "DEX_A");
+        AnchorPatcher.patchOnce(dex, AnchorPatcher.DEX_B,
+                AnchorPatcher.withRegion(AnchorPatcher.DEX_B, hexBytes(maskB)), "DEX_B");
         AnchorPatcher.patchOnce(dex, AnchorPatcher.ORIG_APP,
-                AnchorPatcher.origAppValue(origApp), "ORIG_APP");
+                AnchorPatcher.withRegion(AnchorPatcher.ORIG_APP, AnchorPatcher.origAppValue(origApp)), "ORIG_APP");
         AnchorPatcher.patchOnce(dex, AnchorPatcher.ORIG_FACTORY,
-                AnchorPatcher.origFactoryValue(mi.componentFactoryName), "ORIG_FACTORY");
-        log.log("dex 占位符补丁完成（锚分拆 + 原 Application 名 + 原 factory 名）");
+                AnchorPatcher.withRegion(AnchorPatcher.ORIG_FACTORY, AnchorPatcher.origFactoryValue(mi.componentFactoryName)), "ORIG_FACTORY");
+        /* 补丁改动了 dex 字节：必须重算头部 checksum/signature，否则 ART 拒载整个 dex */
+        DexFixer.fixChecksums(dex);
+        log.log("dex 占位符补丁完成（锚分拆 + 原 Application 名 + 原 factory 名，checksum 已重算）");
 
         // ---- 4. 目标 ABI 与 so 补丁 ----
         List<String> abis = targetAbis(apk, payloadSo.keySet());
@@ -201,14 +205,22 @@ public final class ApkInjector {
         if (dex == null) {
             errors.add("缺少 " + newDexName);
         } else {
-            checkCount(errors, newDexName + " hex(锚A)", dex, hexBytes(anchorA), 1);
-            checkCount(errors, newDexName + " hex(掩码)", dex, hexBytes(maskB), 1);
-            checkPresent(errors, newDexName + " ORIG_APP 值", dex, AnchorPatcher.origAppValue(origApp));
-            checkPresent(errors, newDexName + " ORIG_FACTORY 值", dex, AnchorPatcher.origFactoryValue(origFactory));
+            checkCount(errors, newDexName + " 锚A 槽位", dex,
+                    AnchorPatcher.withRegion(AnchorPatcher.DEX_A, hexBytes(anchorA)), 1);
+            checkCount(errors, newDexName + " 掩码 槽位", dex,
+                    AnchorPatcher.withRegion(AnchorPatcher.DEX_B, hexBytes(maskB)), 1);
+            checkPresent(errors, newDexName + " ORIG_APP 值", dex,
+                    AnchorPatcher.withRegion(AnchorPatcher.ORIG_APP, AnchorPatcher.origAppValue(origApp)));
+            checkPresent(errors, newDexName + " ORIG_FACTORY 值", dex,
+                    AnchorPatcher.withRegion(AnchorPatcher.ORIG_FACTORY, AnchorPatcher.origFactoryValue(origFactory)));
             checkCount(errors, newDexName + " 残留 DEX_A", dex, AnchorPatcher.DEX_A, 0);
             checkCount(errors, newDexName + " 残留 DEX_B", dex, AnchorPatcher.DEX_B, 0);
             checkCount(errors, newDexName + " 残留 ORIG_APP", dex, AnchorPatcher.ORIG_APP, 0);
             checkCount(errors, newDexName + " 残留 ORIG_FACTORY", dex, AnchorPatcher.ORIG_FACTORY, 0);
+            /* dex 结构不变量门禁：头部校验和 + string_ids 严格升序（破坏即 ART 拒载、注入类全 CNFE） */
+            for (String e : DexFixer.verify(dex)) {
+                errors.add(newDexName + " " + e);
+            }
         }
         for (String abi : abis) {
             String entry = "lib/" + abi + "/libsigncheck.so";

@@ -6,16 +6,20 @@ import java.security.SecureRandom;
 /**
  * 字节模式同长替换补丁器（dex 字符串池 / so .rodata 占位符）。
  * 所有替换必须【字节数完全相等】，保证 dex 字符串池偏移与 so 节布局不变。
+ *
+ * 【dex 槽位格式】固定前缀 + 值区（见 SignCheck 注释）。补丁只写值区，
+ * 前缀（0x7F 起始 + tag）不动 → string_ids 严格升序不变量对任意补丁值恒成立；
+ * 补丁后由 ApkInjector 调 DexFixer 重算 dex 头部 checksum/signature。
  */
 public final class AnchorPatcher {
 
     /** 占位符约定（与 payload 构建产物一致，长度勿改）。 */
-    public static final byte[] DEX_A = ("ORGYDEXANCHORA" + repeat('0', 50)).getBytes(StandardCharsets.US_ASCII); // 64
-    public static final byte[] DEX_B = ("ORGYDEXANCHORB" + repeat('0', 50)).getBytes(StandardCharsets.US_ASCII); // 64
-    public static final byte[] ORIG_APP = origAppPattern();                                                     // 128
-    public static final byte[] ORIG_FACTORY = origFactoryPattern();                                             // 128
-    public static final byte[] SO_A = ("ORGYSOANCHORA" + repeat('0', 19)).getBytes(StandardCharsets.US_ASCII);  // 32
-    public static final byte[] SO_B = ("ORGYSOANCHORB" + repeat('0', 19)).getBytes(StandardCharsets.US_ASCII);  // 32
+    public static final byte[] DEX_A = ("\177ORGYDEXANCHORA" + repeat('0', 64)).getBytes(StandardCharsets.US_ASCII); // 79
+    public static final byte[] DEX_B = ("\177ORGYDEXANCHORB" + repeat('0', 64)).getBytes(StandardCharsets.US_ASCII); // 79
+    public static final byte[] ORIG_APP = origAppPattern();                                                          // 144
+    public static final byte[] ORIG_FACTORY = origFactoryPattern();                                                  // 144
+    public static final byte[] SO_A = ("ORGYSOANCHORA" + repeat('0', 19)).getBytes(StandardCharsets.US_ASCII);       // 32
+    public static final byte[] SO_B = ("ORGYSOANCHORB" + repeat('0', 19)).getBytes(StandardCharsets.US_ASCII);       // 32
 
     private AnchorPatcher() {}
 
@@ -80,40 +84,56 @@ public final class AnchorPatcher {
         return out;
     }
 
-    /** ORIG_APP 补丁值：类名 UTF-8 + 0x01 右填充至 128；null = 无原 Application（全 0x01）。 */
+    /** 构造槽位补丁值：保留 pattern 的固定前缀，把 region 写入末尾值区（同长替换）。 */
+    public static byte[] withRegion(byte[] pattern, byte[] region) {
+        if (region.length > pattern.length) {
+            throw new IllegalArgumentException("值区超出槽位长度：" + region.length + " > " + pattern.length);
+        }
+        byte[] out = pattern.clone();
+        System.arraycopy(region, 0, out, pattern.length - region.length, region.length);
+        return out;
+    }
+
+    /** ORIG_APP 补丁值（128 字节值区）：类名 ASCII + 0x01 右填充；null = 无原 Application（全 0x01）。 */
     public static byte[] origAppValue(String fullClassName) {
-        return nameValue128(fullClassName, "Application 类名过长（>128 字节）");
+        return nameValue128(fullClassName, "Application");
     }
 
-    /** ORIG_FACTORY 补丁值：类名 UTF-8 + 0x01 右填充至 128；null = 无原 factory（全 0x01）。 */
+    /** ORIG_FACTORY 补丁值（128 字节值区）：类名 ASCII + 0x01 右填充；null = 无原 factory（全 0x01）。 */
     public static byte[] origFactoryValue(String fullClassName) {
-        return nameValue128(fullClassName, "appComponentFactory 类名过长（>128 字节）");
+        return nameValue128(fullClassName, "appComponentFactory");
     }
 
-    private static byte[] nameValue128(String fullClassName, String tooLongMsg) {
+    private static byte[] nameValue128(String fullClassName, String what) {
         byte[] out = new byte[128];
         java.util.Arrays.fill(out, (byte) 0x01);
         if (fullClassName == null) return out;
         byte[] name = fullClassName.getBytes(StandardCharsets.UTF_8);
         if (name.length > 128) {
-            throw new IllegalArgumentException(tooLongMsg + "：" + fullClassName);
+            throw new IllegalArgumentException(what + " 类名过长（>128 字节）：" + fullClassName);
+        }
+        for (byte b : name) {
+            if (b < 0 || (b & 0x80) != 0) {
+                /* 非 ASCII 会破坏 dex string_data 的 utf16_size 不变量（dex 必须拒载） */
+                throw new IllegalArgumentException(what + " 类名含非 ASCII 字符，暂不支持：" + fullClassName);
+            }
         }
         System.arraycopy(name, 0, out, 0, name.length);
         return out;
     }
 
     private static byte[] origAppPattern() {
-        byte[] out = new byte[128];
-        java.util.Arrays.fill(out, (byte) 0x01);
-        byte[] head = "ORGYORIGAPPNAME".getBytes(StandardCharsets.US_ASCII);
+        byte[] out = new byte[144];
+        java.util.Arrays.fill(out, (byte) '0');
+        byte[] head = "\177ORGYORIGAPPNAME".getBytes(StandardCharsets.US_ASCII);
         System.arraycopy(head, 0, out, 0, head.length);
         return out;
     }
 
     private static byte[] origFactoryPattern() {
-        byte[] out = new byte[128];
-        java.util.Arrays.fill(out, (byte) 0x01);
-        byte[] head = "ORGYORIGFACTORY".getBytes(StandardCharsets.US_ASCII);
+        byte[] out = new byte[144];
+        java.util.Arrays.fill(out, (byte) '0');
+        byte[] head = "\177ORGYORIGFACTORY".getBytes(StandardCharsets.US_ASCII);
         System.arraycopy(head, 0, out, 0, head.length);
         return out;
     }

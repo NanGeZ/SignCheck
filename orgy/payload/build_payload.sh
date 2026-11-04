@@ -53,20 +53,44 @@ if [ "${SKIP_SO:-0}" != "1" ]; then
 fi
 
 python3 - "$ASSETS" <<'PYEOF'
-import sys, pathlib
+import sys, pathlib, struct
 assets = pathlib.Path(sys.argv[1])
-DEX_A = b"ORGYDEXANCHORA" + b"0" * 50          # 64 字符 hex 占位
-DEX_B = b"ORGYDEXANCHORB" + b"0" * 50
-ORIG  = b"ORGYORIGAPPNAME" + b"\x01" * 113     # 128 字符占位（MUTF-8 同 ASCII）
-FAC   = b"ORGYORIGFACTORY" + b"\x01" * 113     # 128 字符占位
-SO_A  = b"ORGYSOANCHORA" + b"0" * 19           # 32 字节 so 锚占位
+DEX_A = b"\x7fORGYDEXANCHORA" + b"0" * 64     # 79 字节槽位（15 固定前缀 + 64 hex 值区）
+DEX_B = b"\x7fORGYDEXANCHORB" + b"0" * 64
+ORIG  = b"\x7fORGYORIGAPPNAME" + b"0" * 128   # 144 字节槽位（16 固定前缀 + 128 值区）
+FAC   = b"\x7fORGYORIGFACTORY" + b"0" * 128
+SO_A  = b"ORGYSOANCHORA" + b"0" * 19          # 32 字节 so 锚占位
 SO_B  = b"ORGYSOANCHORB" + b"0" * 19
 ok = True
 dex = (assets / "classes.dex").read_bytes()
-for name, pat in (("DEX_A", DEX_A), ("DEX_B", DEX_B), ("ORIG_APP", ORIG), ("ORIG_FACTORY", FAC)):
+slots = (("DEX_A", DEX_A), ("DEX_B", DEX_B), ("ORIG_APP", ORIG), ("ORIG_FACTORY", FAC))
+for name, pat in slots:
     c = dex.count(pat)
     print(f"classes.dex {name}: count={c} len={len(pat)}")
     ok &= (c == 1)
+# 字符串池簇断言：恰有 4 条字符串以 0x7F 开头且就是 4 个槽位。
+# 这保证「补丁只写值区」时 string_ids 严格升序不变量对任意补丁值恒成立
+# （0x7F 前缀使槽位成簇排在所有普通字符串之后，tag 保序）。
+nstr, stroff = struct.unpack_from("<II", dex, 0x38)
+def read_string(off):
+    while dex[off] & 0x80:
+        off += 1                      # 跳过 uleb128 utf16_size
+    off += 1
+    end = dex.index(b"\x00", off)     # MUTF-8 内嵌 NUL 编码为 C0 80，裸 0x00 只能是终止符
+    return dex[off:end]
+slot_by_bytes = {pat: name for name, pat in slots}
+cluster = []
+for i in range(nstr):
+    (o,) = struct.unpack_from("<I", dex, stroff + 4 * i)
+    s = read_string(o)
+    if s[:1] == b"\x7f":
+        cluster.append((i, s))
+print(f"classes.dex 0x7F 簇: {len(cluster)} 条")
+ok &= (len(cluster) == 4)
+for i, s in cluster:
+    tag = slot_by_bytes.get(s)
+    print(f"   string_ids[{i}] len={len(s)} -> {tag}")
+    ok &= (tag is not None)
 for abi in ("arm64-v8a", "armeabi-v7a", "x86_64", "x86"):
     so = (assets / f"libsigncheck-{abi}.so").read_bytes()
     for name, pat in (("SO_A", SO_A), ("SO_B", SO_B)):

@@ -1890,7 +1890,7 @@
     invoke-virtual {v4, p1, v0}, Lokhttp3/Headers$Builder;->a(Ljava/lang/String;Ljava/lang/String;)V
 
     .line 172
-    const-string p1, "接受"
+    const-string p1, "Accept"
 
     .line 174
     const-string v0, "application/json, text/plain, */*"
@@ -2345,7 +2345,7 @@
     invoke-virtual {v6, v3, v5}, Lokhttp3/Headers$Builder;->a(Ljava/lang/String;Ljava/lang/String;)V
 
     .line 37
-    const-string v3, "接受"
+    const-string v3, "Accept"
 
     .line 39
     const-string v5, "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8"

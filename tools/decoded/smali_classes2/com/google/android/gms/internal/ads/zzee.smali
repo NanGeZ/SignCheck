@@ -297,7 +297,7 @@
 
     .line 14
     .line 15
-    const-string p1, "无法连接（无网络）"
+    const-string p1, "UnknownHostException (no network)"
 
     .line 16
     .line 17

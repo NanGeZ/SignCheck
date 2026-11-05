@@ -621,7 +621,7 @@
     move-object/from16 v24, v6
 
     .line 372
-    const-string v6, "模型"
+    const-string v6, "Model"
 
     .line 374
     move-object/from16 v63, v7
@@ -9658,7 +9658,7 @@
     if-nez v3, :cond_20
 
     .line 518
-    const-string v3, "模型"
+    const-string v3, "Model"
 
     .line 520
     invoke-virtual {v3, v2}, Ljava/lang/String;->equals(Ljava/lang/Object;)Z

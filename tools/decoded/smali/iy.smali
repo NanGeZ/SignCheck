@@ -6039,7 +6039,7 @@
 
     .line 387
     :cond_1a
-    const-string p0, "任意"
+    const-string p0, "Any"
 
     .line 389
     return-object p0

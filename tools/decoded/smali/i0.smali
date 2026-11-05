@@ -1699,7 +1699,7 @@
     if-eqz v10, :cond_5
 
     .line 174
-    const-string v0, "选择图片（"
+    const-string v0, "Select Image ("
 
     .line 176
     const-string v8, ")"

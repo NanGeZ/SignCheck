@@ -198,7 +198,7 @@
     invoke-virtual {v8, p1, v7}, Lokhttp3/Request$Builder;->e(Ljava/lang/String;Lokhttp3/RequestBody;)V
 
     .line 78
-    const-string p1, "语言"
+    const-string p1, "Language"
 
     .line 80
     const-string v7, "en-US"
@@ -261,7 +261,7 @@
     invoke-virtual {v7, p1, v5}, Lokhttp3/Headers$Builder;->a(Ljava/lang/String;Ljava/lang/String;)V
 
     .line 127
-    const-string p1, "接受"
+    const-string p1, "Accept"
 
     .line 129
     iget-object v5, v8, Lokhttp3/Request$Builder;->c:Lokhttp3/Headers$Builder;

@@ -528,7 +528,7 @@
     invoke-direct {v4, v5}, Ljava/lang/Float;-><init>(F)V
 
     .line 248
-    const-string v5, "正在处理图片..."
+    const-string v5, "Processing image..."
 
     .line 250
     invoke-interface {v2, v4, v5}, Llj1;->invoke(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;

@@ -592,7 +592,7 @@
     check-cast v0, Landroid/os/Bundle;
 
     .line 47
-    const-string v3, "错误"
+    const-string v3, "Error"
 
     .line 49
     invoke-virtual {v0, v3}, Landroid/os/BaseBundle;->getString(Ljava/lang/String;)Ljava/lang/String;
@@ -1157,7 +1157,7 @@
 
     .line 40
     :cond_3
-    const-string p1, "错误"
+    const-string p1, "Error"
 
     .line 42
     invoke-virtual {p2, p1}, Landroid/os/BaseBundle;->getString(Ljava/lang/String;)Ljava/lang/String;

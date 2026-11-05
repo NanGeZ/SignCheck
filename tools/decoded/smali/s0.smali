@@ -1369,7 +1369,7 @@
     if-eqz v0, :cond_1d
 
     .line 869
-    const-string v1, "版本 "
+    const-string v1, "Version "
 
     .line 871
     const-string v3, " is now available. "
@@ -1414,14 +1414,14 @@
     if-lt v1, v3, :cond_1f
 
     .line 892
-    const-string v1, "本次更新包含新功能与改进，以提升你的体验。"
+    const-string v1, "This update includes new features and improvements to enhance your experience."
 
     .line 894
     goto :goto_e
 
     .line 895
     :cond_1f
-    const-string v1, "更新以获取最新功能与改进。"
+    const-string v1, "Update to get the latest features and improvements."
 
     .line 897
     :goto_e

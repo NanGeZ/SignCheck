@@ -281,7 +281,7 @@
     .line 101
     .line 102
     .line 103
-    const-string v5, "接受"
+    const-string v5, "Accept"
 
     .line 104
     .line 105

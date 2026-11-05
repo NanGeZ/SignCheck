@@ -1848,7 +1848,7 @@
 
     .line 1233
     :cond_18
-    const-string v0, "动漫、漫画、日式艺术风格与角色插画。"
+    const-string v0, "Anime, manga, Japanese art styles, character illustrations."
 
     .line 1235
     :goto_f
@@ -1875,7 +1875,7 @@
 
     .line 1247
     :cond_19
-    const-string v0, "艺术内容、创意项目、美学图像。"
+    const-string v0, "Artistic content, creative projects, aesthetic images."
 
     .line 1249
     goto :goto_f
@@ -1898,7 +1898,7 @@
 
     .line 1259
     :cond_1a
-    const-string v0, "照片级写实图像、精细场景、产品摄影、人像。"
+    const-string v0, "Photorealistic images, detailed scenes, product photography, portraits."
 
     .line 1261
     goto :goto_f
@@ -1921,7 +1921,7 @@
 
     .line 1271
     :cond_1b
-    const-string v0, "艺术风格、奇幻艺术、创意插画、风格化图像。"
+    const-string v0, "Artistic styles, fantasy art, creative illustrations, stylized images."
 
     .line 1273
     goto :goto_f
@@ -1944,7 +1944,7 @@
 
     .line 1283
     :cond_1c
-    const-string v0, "快速生成、简单图像、批量创作、验证想法。"
+    const-string v0, "Fast generation, simpler images, bulk creation, testing ideas."
 
     .line 1285
     goto :goto_f
@@ -1967,7 +1967,7 @@
 
     .line 1295
     :cond_1d
-    const-string v0, "通用型，质量与速度均衡，是大多数图片的首选。"
+    const-string v0, "General purpose, balanced quality and speed. Great default choice for most images."
 
     .line 1297
     goto :goto_f

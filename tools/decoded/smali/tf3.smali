@@ -80,7 +80,7 @@
 
     .line 29
     :pswitch_2
-    const-string v0, "积分"
+    const-string v0, "points"
 
     .line 31
     invoke-static {p0, v0, v5, v4}, Lb23;->k(Lb23;Ljava/lang/String;Li23;I)V

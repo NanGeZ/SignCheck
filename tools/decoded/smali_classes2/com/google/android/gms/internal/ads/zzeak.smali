@@ -1075,7 +1075,7 @@
 
     .line 39
     .line 40
-    const-string p3, "连接超时"
+    const-string p3, "Time out"
 
     .line 41
     .line 42

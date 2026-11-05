@@ -168,7 +168,7 @@
 
     .line 78
     .line 79
-    const-string v38, "哥特"
+    const-string v38, "Gothic"
 
     .line 80
     .line 81
@@ -276,7 +276,7 @@
 
     .line 132
     .line 133
-    const-string v65, "复古"
+    const-string v65, "Retro"
 
     .line 134
     .line 135
@@ -552,7 +552,7 @@
 
     .line 270
     .line 271
-    const-string v134, "日系动漫"
+    const-string v134, "Anime"
 
     .line 272
     .line 273
@@ -564,7 +564,7 @@
 
     .line 276
     .line 277
-    const-string v137, "抽象艺术"
+    const-string v137, "Abstract"
 
     .line 278
     .line 279

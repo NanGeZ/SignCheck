@@ -263,7 +263,7 @@
     invoke-virtual {v6, v3, v5}, Ljava/net/URLConnection;->setRequestProperty(Ljava/lang/String;Ljava/lang/String;)V
 
     .line 83
-    const-string v3, "接受"
+    const-string v3, "Accept"
 
     .line 85
     const-string v5, "application/json"

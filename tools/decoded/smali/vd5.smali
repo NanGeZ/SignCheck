@@ -10079,7 +10079,7 @@
 
     .line 59
     :goto_1
-    const-string v3, "解码文件以便保存失败："
+    const-string v3, "Error decoding file for save: "
 
     .line 61
     invoke-virtual {v3, p0}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;
@@ -10256,7 +10256,7 @@
 
     .line 54
     :goto_0
-    const-string v2, "解码文件失败："
+    const-string v2, "Error decoding file: "
 
     .line 56
     invoke-virtual {v2, p0}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;

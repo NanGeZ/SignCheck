@@ -1493,7 +1493,7 @@
     move-result-object v1
 
     .line 775
-    const-string v2, "保存图片失败："
+    const-string v2, "Failed to save image: "
 
     .line 777
     invoke-virtual {v2, v1}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;

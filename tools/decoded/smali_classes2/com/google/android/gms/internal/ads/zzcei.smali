@@ -32,7 +32,7 @@
     move-result v0
 
     .line 5
-    const-string v1, "默认"
+    const-string v1, "Default"
 
     .line 6
     .line 7

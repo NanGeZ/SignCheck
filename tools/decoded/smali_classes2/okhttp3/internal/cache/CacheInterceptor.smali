@@ -403,7 +403,7 @@
 
     .line 184
     .line 185
-    const-string v5, "警告"
+    const-string v5, "Warning"
 
     .line 186
     .line 187

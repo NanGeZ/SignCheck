@@ -68,7 +68,7 @@
     const-string v1, "original_image"
 
     .line 28
-    const-string v2, "张图片"
+    const-string v2, "images"
 
     .line 30
     const-string v3, "original_image_file"
@@ -1175,7 +1175,7 @@
     invoke-virtual {v12, v11}, Lokhttp3/Request$Builder;->f(Lokhttp3/RequestBody;)V
 
     .line 184
-    const-string v11, "接受"
+    const-string v11, "Accept"
 
     .line 186
     const-string v13, "*/*"

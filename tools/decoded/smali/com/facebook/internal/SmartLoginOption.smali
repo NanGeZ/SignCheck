@@ -75,7 +75,7 @@
     const-wide/16 v2, 0x0
 
     .line 6
-    const-string v4, "无"
+    const-string v4, "None"
 
     .line 8
     invoke-direct {v0, v4, v1, v2, v3}, Lcom/facebook/internal/SmartLoginOption;-><init>(Ljava/lang/String;IJ)V
@@ -93,7 +93,7 @@
     const-wide/16 v2, 0x1
 
     .line 18
-    const-string v4, "已启用"
+    const-string v4, "Enabled"
 
     .line 20
     invoke-direct {v0, v4, v1, v2, v3}, Lcom/facebook/internal/SmartLoginOption;-><init>(Ljava/lang/String;IJ)V

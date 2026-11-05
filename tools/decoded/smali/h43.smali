@@ -4650,7 +4650,7 @@
 
     .line 14
     :sswitch_1
-    const-string p0, "开始"
+    const-string p0, "Start"
 
     .line 16
     return-object p0

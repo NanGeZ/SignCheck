@@ -1405,7 +1405,7 @@
     .line 854
     :cond_1b
     :goto_10
-    const-string v4, "自动选择（"
+    const-string v4, "Auto Select ("
 
     .line 856
     const-string v6, ")"

@@ -235,7 +235,7 @@
     const-string v11, "POST"
 
     .line 25
-    const-string v13, "接受"
+    const-string v13, "Accept"
 
     .line 27
     const-string v14, "Authorization"
@@ -2002,7 +2002,7 @@
     if-eqz v9, :cond_12
 
     .line 1192
-    const-string v9, "张图片"
+    const-string v9, "images"
 
     .line 1194
     move/from16 v17, v4
@@ -2245,7 +2245,7 @@
 
     .line 1329
     :goto_13
-    const-string v3, "未知错误"
+    const-string v3, "Unknown error"
 
     .line 1331
     invoke-virtual {v0, v8, v3}, Lorg/json/JSONObject;->optString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;

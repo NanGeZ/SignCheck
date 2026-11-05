@@ -4911,7 +4911,7 @@
     new-instance v0, Ljava/lang/StringBuilder;
 
     .line 36
-    const-string v1, "已删除 "
+    const-string v1, "Deleted "
 
     .line 38
     invoke-direct {v0, v1}, Ljava/lang/StringBuilder;-><init>(Ljava/lang/String;)V
@@ -5024,7 +5024,7 @@
     new-instance v0, Ljava/lang/StringBuilder;
 
     .line 45
-    const-string v1, "已删除 "
+    const-string v1, "Deleted "
 
     .line 47
     invoke-direct {v0, v1}, Ljava/lang/StringBuilder;-><init>(Ljava/lang/String;)V

@@ -83,7 +83,7 @@
 
     invoke-direct {v0, p0}, Landroid/app/AlertDialog$Builder;-><init>(Landroid/content/Context;)V
 
-    const-string v1, "出了点问题"
+    const-string v1, "Something went wrong"
 
     .line 93
     invoke-virtual {v0, v1}, Landroid/app/AlertDialog$Builder;->setTitle(Ljava/lang/CharSequence;)Landroid/app/AlertDialog$Builder;
@@ -97,7 +97,7 @@
 
     move-result-object v0
 
-    const-string v1, "关闭"
+    const-string v1, "Close"
 
     new-instance v2, Lcom/pairip/licensecheck/LicenseActivity$$ExternalSyntheticLambda2;
 

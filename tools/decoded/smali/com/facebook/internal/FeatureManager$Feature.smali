@@ -960,7 +960,7 @@
     const/high16 v2, 0x1000000
 
     .line 546
-    const-string v3, "登录"
+    const-string v3, "Login"
 
     .line 548
     invoke-direct {v0, v3, v1, v2}, Lcom/facebook/internal/FeatureManager$Feature;-><init>(Ljava/lang/String;II)V
@@ -1032,7 +1032,7 @@
     const/high16 v2, 0x2000000
 
     .line 598
-    const-string v3, "分享"
+    const-string v3, "Share"
 
     .line 600
     invoke-direct {v0, v3, v1, v2}, Lcom/facebook/internal/FeatureManager$Feature;-><init>(Ljava/lang/String;II)V

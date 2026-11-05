@@ -173,7 +173,7 @@
     if-nez p3, :cond_4
 
     .line 81
-    const-string p3, "未知错误"
+    const-string p3, "Unknown error"
 
     .line 83
     :cond_4

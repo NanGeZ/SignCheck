@@ -4590,7 +4590,7 @@
 
     .line 11
     :pswitch_0
-    const-string p0, "暂无内容"
+    const-string p0, "Empty"
 
     .line 13
     return-object p0

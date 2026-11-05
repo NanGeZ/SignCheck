@@ -6918,7 +6918,7 @@
 
     .line 26
     :pswitch_2
-    const-string p0, "张图片"
+    const-string p0, "images"
 
     .line 27
     .line 28

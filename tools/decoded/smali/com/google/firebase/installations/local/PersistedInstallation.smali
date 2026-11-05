@@ -320,7 +320,7 @@
     invoke-virtual {v0, v1, v2}, Lorg/json/JSONObject;->put(Ljava/lang/String;Ljava/lang/Object;)Lorg/json/JSONObject;
 
     .line 15
-    const-string v1, "状态"
+    const-string v1, "Status"
 
     .line 17
     invoke-virtual {p1}, Lcom/google/firebase/installations/local/PersistedInstallationEntry;->getRegistrationStatus()Lcom/google/firebase/installations/local/PersistedInstallation$RegistrationStatus;
@@ -522,7 +522,7 @@
     move-result v2
 
     .line 18
-    const-string v3, "状态"
+    const-string v3, "Status"
 
     .line 20
     invoke-virtual {p0, v3, v2}, Lorg/json/JSONObject;->optInt(Ljava/lang/String;I)I

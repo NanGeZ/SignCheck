@@ -458,7 +458,7 @@
 
     .line 19
     :cond_1
-    const-string p0, "已完成"
+    const-string p0, "Completed"
 
     .line 21
     return-object p0

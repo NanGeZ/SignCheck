@@ -77,7 +77,7 @@
     sput-object v0, Lcom/facebook/Profile;->Companion:Lcom/facebook/Profile$Companion;
 
     .line 9
-    const-string v0, "个人资料"
+    const-string v0, "Profile"
 
     .line 11
     sput-object v0, Lcom/facebook/Profile;->TAG:Ljava/lang/String;

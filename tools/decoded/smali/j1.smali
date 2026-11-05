@@ -1163,7 +1163,7 @@
 
     .line 865
     :cond_5
-    const-string v3, "张图片"
+    const-string v3, "images"
 
     .line 867
     invoke-virtual {v0, v2, v1, v3}, Lcom/technosub/unlimitedaiimagen/presentation/upscaling_history/UpscalingHistoryViewModel;->reportContent(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V

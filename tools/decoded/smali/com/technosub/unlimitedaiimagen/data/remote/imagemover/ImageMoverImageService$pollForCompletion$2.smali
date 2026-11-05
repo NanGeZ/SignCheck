@@ -594,7 +594,7 @@
     const-string v8, "error"
 
     .line 273
-    const-string v9, "未知错误"
+    const-string v9, "Unknown error"
 
     .line 275
     invoke-virtual {p1, v8, v9}, Lorg/json/JSONObject;->optString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;

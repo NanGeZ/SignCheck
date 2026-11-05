@@ -232,7 +232,7 @@
     invoke-virtual {v4, p1, v1}, Lokhttp3/Headers$Builder;->a(Ljava/lang/String;Ljava/lang/String;)V
 
     .line 94
-    const-string p1, "接受"
+    const-string p1, "Accept"
 
     .line 96
     const-string v1, "application/json, text/plain, */*"

@@ -1193,7 +1193,7 @@
     move-result-object v1
 
     .line 30
-    const-string v2, "成功"
+    const-string v2, "Success"
 
     .line 32
     sget-object v3, Lcom/facebook/appevents/FlushResult;->SUCCESS:Lcom/facebook/appevents/FlushResult;

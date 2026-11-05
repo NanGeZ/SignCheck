@@ -461,7 +461,7 @@
     const-string p1, "detail"
 
     .line 240
-    const-string v1, "请求失败"
+    const-string v1, "Request failed"
 
     .line 242
     invoke-virtual {v0, p1, v1}, Lorg/json/JSONObject;->optString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;

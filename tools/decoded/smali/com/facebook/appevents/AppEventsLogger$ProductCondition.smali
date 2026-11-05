@@ -56,7 +56,7 @@
     new-instance v0, Lcom/facebook/appevents/AppEventsLogger$ProductCondition;
 
     .line 3
-    const-string v1, "新功能"
+    const-string v1, "NEW"
 
     .line 5
     const/4 v2, 0x0

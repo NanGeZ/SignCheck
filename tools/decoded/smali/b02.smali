@@ -73,7 +73,7 @@
     iget-object p0, p0, Ltn1;->d:Ljava/lang/String;
 
     .line 30
-    const-string p1, "加载图片失败："
+    const-string p1, "Failed to load image: "
 
     .line 32
     goto :goto_0

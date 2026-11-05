@@ -1298,7 +1298,7 @@
     const-string v0, "Make it look like "
 
     .line 172
-    const-string v2, " 种风格"
+    const-string v2, " style"
 
     .line 174
     invoke-static {v0, p3, v2}, Lni0;->h(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
@@ -1687,7 +1687,7 @@
     sget-object v0, Lokhttp3/MultipartBody$Part;->Companion:Lokhttp3/MultipartBody$Part$Companion;
 
     .line 97
-    const-string v4, "张图片"
+    const-string v4, "images"
 
     .line 99
     const-string v8, "input.jpg"

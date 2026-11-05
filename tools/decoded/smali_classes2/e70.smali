@@ -64,7 +64,7 @@
     move-result-object v8
 
     .line 28
-    const-string v9, "警告"
+    const-string v9, "Warning"
 
     .line 29
     .line 30
@@ -404,7 +404,7 @@
 
     .line 56
     .line 57
-    const-string v0, "升级"
+    const-string v0, "Upgrade"
 
     .line 58
     .line 59

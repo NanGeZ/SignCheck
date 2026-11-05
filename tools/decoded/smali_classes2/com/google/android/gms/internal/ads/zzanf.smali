@@ -4074,7 +4074,7 @@
     .catch Ljava/io/IOException; {:try_start_a .. :try_end_a} :catch_0
 
     .line 454
-    const-string v1, "张图片"
+    const-string v1, "images"
 
     .line 455
     .line 456

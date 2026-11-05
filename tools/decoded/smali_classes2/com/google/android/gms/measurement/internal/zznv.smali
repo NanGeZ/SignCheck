@@ -1604,7 +1604,7 @@
 
     .line 1081
     :cond_4
-    const-string p1, "永久"
+    const-string p1, "Lifetime"
 
     .line 1082
     :goto_5

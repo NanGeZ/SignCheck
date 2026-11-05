@@ -107,7 +107,7 @@
     const/4 v1, 0x1
 
     .line 16
-    const-string v2, "网络错误"
+    const-string v2, "Network Error"
 
     .line 17
     .line 18

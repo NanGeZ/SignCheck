@@ -38,7 +38,7 @@
     iget-object v1, p0, Lokhttp3/Request$Builder;->c:Lokhttp3/Headers$Builder;
 
     .line 20
-    const-string v2, "接受"
+    const-string v2, "Accept"
 
     .line 22
     invoke-virtual {v1, v2, v0}, Lokhttp3/Headers$Builder;->a(Ljava/lang/String;Ljava/lang/String;)V

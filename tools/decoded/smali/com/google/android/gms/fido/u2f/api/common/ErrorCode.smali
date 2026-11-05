@@ -60,7 +60,7 @@
     new-instance v0, Lcom/google/android/gms/fido/u2f/api/common/ErrorCode;
 
     .line 3
-    const-string v1, "确定"
+    const-string v1, "OK"
 
     .line 5
     const/4 v2, 0x0

@@ -258,7 +258,7 @@
     invoke-direct {v0}, Ljava/util/ArrayList;-><init>()V
 
     .line 6
-    const-string v1, "无"
+    const-string v1, "None"
 
     .line 8
     const/4 v2, 0x1
@@ -381,7 +381,7 @@
     invoke-direct {v0, p0}, Lcom/google/android/gms/ads/internal/util/zzak;-><init>(Lcom/google/android/gms/ads/internal/util/zzat;)V
 
     .line 84
-    const-string v1, "忽略"
+    const-string v1, "Dismiss"
 
     .line 86
     invoke-virtual {p1, v1, v0}, Landroid/app/AlertDialog$Builder;->setNegativeButton(Ljava/lang/CharSequence;Landroid/content/DialogInterface$OnClickListener;)Landroid/app/AlertDialog$Builder;
@@ -396,7 +396,7 @@
     invoke-direct/range {v4 .. v9}, Lcom/google/android/gms/ads/internal/util/zzal;-><init>(Lcom/google/android/gms/ads/internal/util/zzat;Ljava/util/concurrent/atomic/AtomicInteger;III)V
 
     .line 95
-    const-string p0, "保存"
+    const-string p0, "Save"
 
     .line 97
     invoke-virtual {p1, p0, v4}, Landroid/app/AlertDialog$Builder;->setPositiveButton(Ljava/lang/CharSequence;Landroid/content/DialogInterface$OnClickListener;)Landroid/app/AlertDialog$Builder;
@@ -1280,13 +1280,13 @@
     invoke-direct {p2, p0, p4}, Lcom/google/android/gms/ads/internal/util/zzan;-><init>(Lcom/google/android/gms/ads/internal/util/zzat;Ljava/lang/String;)V
 
     .line 140
-    const-string p0, "分享"
+    const-string p0, "Share"
 
     .line 142
     invoke-virtual {p1, p0, p2}, Landroid/app/AlertDialog$Builder;->setPositiveButton(Ljava/lang/CharSequence;Landroid/content/DialogInterface$OnClickListener;)Landroid/app/AlertDialog$Builder;
 
     .line 145
-    const-string p0, "关闭"
+    const-string p0, "Close"
 
     .line 147
     sget-object p2, Lcom/google/android/gms/ads/internal/util/zzao;->zza:Lcom/google/android/gms/ads/internal/util/zzao;
@@ -1563,7 +1563,7 @@
     move-result-object p1
 
     .line 23
-    const-string p2, "分享方式"
+    const-string p2, "Share via"
 
     .line 25
     invoke-static {p1, p2}, Landroid/content/Intent;->createChooser(Landroid/content/Intent;Ljava/lang/CharSequence;)Landroid/content/Intent;

@@ -241,7 +241,7 @@
     invoke-virtual {v4}, Lokhttp3/Request$Builder;->c()V
 
     .line 62
-    const-string v8, "接受"
+    const-string v8, "Accept"
 
     .line 64
     const-string v9, "application/json"
@@ -471,7 +471,7 @@
     const-string v2, "error"
 
     .line 219
-    const-string v4, "未知错误"
+    const-string v4, "Unknown error"
 
     .line 221
     invoke-virtual {v3, v2, v4}, Lorg/json/JSONObject;->optString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;

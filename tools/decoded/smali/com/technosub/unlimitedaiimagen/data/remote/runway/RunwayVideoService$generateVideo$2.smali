@@ -822,7 +822,7 @@
     new-instance v16, Lcom/technosub/unlimitedaiimagen/data/remote/runway/RateLimitException;
 
     .line 425
-    const-string v1, "已达每日生成上限"
+    const-string v1, "Daily generation limit reached"
 
     .line 427
     invoke-virtual {v0, v12, v1}, Lorg/json/JSONObject;->optString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;

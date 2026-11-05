@@ -558,7 +558,7 @@
 
     .line 24
     :cond_0
-    const-string p0, "位置 "
+    const-string p0, "Position "
 
     .line 26
     const-string v0, " is out of bounds for this buffer"

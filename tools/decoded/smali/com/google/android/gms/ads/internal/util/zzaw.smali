@@ -72,7 +72,7 @@
     if-eqz v2, :cond_0
 
     .line 19
-    const-string v2, "错误"
+    const-string v2, "Error"
 
     .line 21
     invoke-virtual {v1, v2}, Landroid/app/AlertDialog$Builder;->setTitle(Ljava/lang/CharSequence;)Landroid/app/AlertDialog$Builder;
@@ -82,7 +82,7 @@
 
     .line 25
     :cond_0
-    const-string v2, "信息"
+    const-string v2, "Info"
 
     .line 27
     invoke-virtual {v1, v2}, Landroid/app/AlertDialog$Builder;->setTitle(Ljava/lang/CharSequence;)Landroid/app/AlertDialog$Builder;
@@ -95,7 +95,7 @@
     const/4 v3, 0x0
 
     .line 33
-    const-string v4, "忽略"
+    const-string v4, "Dismiss"
 
     .line 35
     if-eqz v2, :cond_1
@@ -114,7 +114,7 @@
     invoke-direct {v2, p0, v0}, Lcom/google/android/gms/ads/internal/util/zzav;-><init>(Lcom/google/android/gms/ads/internal/util/zzaw;Landroid/content/Context;)V
 
     .line 46
-    const-string p0, "了解更多"
+    const-string p0, "Learn More"
 
     .line 48
     invoke-virtual {v1, p0, v2}, Landroid/app/AlertDialog$Builder;->setPositiveButton(Ljava/lang/CharSequence;Landroid/content/DialogInterface$OnClickListener;)Landroid/app/AlertDialog$Builder;

@@ -152,7 +152,7 @@
 
     .line 56
     .line 57
-    const-string v0, "升级"
+    const-string v0, "Upgrade"
 
     .line 58
     .line 59

@@ -57,7 +57,7 @@
     new-instance v0, Lcom/google/firebase/installations/remote/InstallationResponse$ResponseCode;
 
     .line 3
-    const-string v1, "确定"
+    const-string v1, "OK"
 
     .line 5
     const/4 v2, 0x0

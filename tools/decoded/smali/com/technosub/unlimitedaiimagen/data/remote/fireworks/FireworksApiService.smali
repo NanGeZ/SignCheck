@@ -1040,7 +1040,7 @@
     iget v8, v7, Lcom/technosub/unlimitedaiimagen/data/remote/fireworks/FireworksApiService$performAsyncImageGeneration$1;->label:I
 
     .line 43
-    const-string v9, "接受"
+    const-string v9, "Accept"
 
     .line 45
     const-string v10, "Authorization"
@@ -1780,7 +1780,7 @@
 
     .line 534
     :try_start_6
-    const-string v14, "张图片"
+    const-string v14, "images"
 
     .line 536
     move-object/from16 v18, v6
@@ -2213,7 +2213,7 @@
 
     .line 763
     :goto_c
-    const-string v3, "未知错误"
+    const-string v3, "Unknown error"
 
     .line 765
     invoke-virtual {v2, v6, v3}, Lorg/json/JSONObject;->optString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
@@ -3338,7 +3338,7 @@
     invoke-virtual {v4, v1, v6}, Lokhttp3/Headers$Builder;->a(Ljava/lang/String;Ljava/lang/String;)V
 
     .line 501
-    const-string v1, "接受"
+    const-string v1, "Accept"
 
     .line 503
     iget-object v4, v8, Lokhttp3/Request$Builder;->c:Lokhttp3/Headers$Builder;

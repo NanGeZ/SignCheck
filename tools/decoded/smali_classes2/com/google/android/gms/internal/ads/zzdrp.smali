@@ -1435,7 +1435,7 @@
 
     .line 2
     .line 3
-    const-string v0, "张图片"
+    const-string v0, "images"
 
     .line 4
     .line 5
@@ -1521,7 +1521,7 @@
 
     .line 25
     :cond_0
-    const-string v0, "张图片"
+    const-string v0, "images"
 
     .line 26
     .line 27
@@ -1936,7 +1936,7 @@
 
     .line 15
     :cond_0
-    const-string v0, "张图片"
+    const-string v0, "images"
 
     .line 16
     .line 17
@@ -1948,7 +1948,7 @@
     move-result-object v0
 
     .line 21
-    const-string v1, "张图片"
+    const-string v1, "images"
 
     .line 22
     .line 23

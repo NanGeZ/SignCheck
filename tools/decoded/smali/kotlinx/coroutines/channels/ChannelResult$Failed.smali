@@ -31,7 +31,7 @@
     .locals 0
 
     .line 1
-    const-string p0, "失败"
+    const-string p0, "Failed"
 
     .line 3
     return-object p0

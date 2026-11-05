@@ -226,7 +226,7 @@
     if-eqz p4, :cond_0
 
     .line 5
-    const-string p3, "张图片"
+    const-string p3, "images"
 
     .line 7
     :cond_0

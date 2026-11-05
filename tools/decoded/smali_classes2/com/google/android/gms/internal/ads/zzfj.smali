@@ -3593,7 +3593,7 @@
     return-object p0
 
     :pswitch_1
-    const-string p0, "张图片"
+    const-string p0, "images"
 
     return-object p0
 

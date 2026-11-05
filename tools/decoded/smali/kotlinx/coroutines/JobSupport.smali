@@ -2812,7 +2812,7 @@
 
     .line 41
     :cond_3
-    const-string p0, "新"
+    const-string p0, "New"
 
     .line 43
     return-object p0
@@ -2832,7 +2832,7 @@
 
     .line 51
     :cond_5
-    const-string p0, "已完成"
+    const-string p0, "Completed"
 
     .line 53
     return-object p0

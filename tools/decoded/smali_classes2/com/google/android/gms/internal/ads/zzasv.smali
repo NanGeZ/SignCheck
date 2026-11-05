@@ -33,7 +33,7 @@
     .line 12
     .line 13
     :cond_0
-    const-string v4, "日期"
+    const-string v4, "Date"
 
     .line 14
     .line 15

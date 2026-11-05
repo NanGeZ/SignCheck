@@ -1192,7 +1192,7 @@
 
     .line 9
     .line 10
-    const-string v1, "位置 "
+    const-string v1, "Position "
 
     .line 11
     .line 12

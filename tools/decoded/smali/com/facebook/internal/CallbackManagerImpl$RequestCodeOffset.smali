@@ -116,7 +116,7 @@
     new-instance v0, Lcom/facebook/internal/CallbackManagerImpl$RequestCodeOffset;
 
     .line 3
-    const-string v1, "登录"
+    const-string v1, "Login"
 
     .line 5
     const/4 v2, 0x0
@@ -131,7 +131,7 @@
     new-instance v0, Lcom/facebook/internal/CallbackManagerImpl$RequestCodeOffset;
 
     .line 13
-    const-string v1, "分享"
+    const-string v1, "Share"
 
     .line 15
     const/4 v2, 0x1

@@ -2227,7 +2227,7 @@
 
     .line 88
     .line 89
-    const-string v4, "确定"
+    const-string v4, "OK"
 
     .line 90
     .line 91

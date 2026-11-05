@@ -57,7 +57,7 @@
     new-instance v0, Lcom/google/firebase/database/core/operation/OperationSource$Source;
 
     .line 3
-    const-string v1, "用户"
+    const-string v1, "User"
 
     .line 5
     const/4 v2, 0x0

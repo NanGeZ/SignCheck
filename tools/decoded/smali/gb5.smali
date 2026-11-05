@@ -594,7 +594,7 @@
 
     .line 290
     :cond_8
-    const-string v2, "请求失败"
+    const-string v2, "Request failed"
 
     .line 292
     :cond_9

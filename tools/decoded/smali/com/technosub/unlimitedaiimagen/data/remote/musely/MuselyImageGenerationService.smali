@@ -1062,7 +1062,7 @@
     invoke-virtual {v5, p1, v2}, Lokhttp3/Headers$Builder;->a(Ljava/lang/String;Ljava/lang/String;)V
 
     .line 100
-    const-string p1, "接受"
+    const-string p1, "Accept"
 
     .line 102
     const-string v2, "*/*"
@@ -1977,7 +1977,7 @@
     invoke-virtual {v10, p1, v9}, Lokhttp3/Headers$Builder;->a(Ljava/lang/String;Ljava/lang/String;)V
 
     .line 194
-    const-string p1, "接受"
+    const-string p1, "Accept"
 
     .line 196
     const-string v9, "text/x-component"

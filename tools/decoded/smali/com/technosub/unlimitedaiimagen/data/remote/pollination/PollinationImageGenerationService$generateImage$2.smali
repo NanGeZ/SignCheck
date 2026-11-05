@@ -514,7 +514,7 @@
     invoke-virtual {p0, p1, v4}, Ljava/net/URLConnection;->setRequestProperty(Ljava/lang/String;Ljava/lang/String;)V
 
     .line 234
-    const-string p1, "接受"
+    const-string p1, "Accept"
 
     .line 236
     const-string v4, "image/*"

@@ -276,7 +276,7 @@
     .line 1078
     :cond_1
     :goto_0
-    const-string p1, "背景"
+    const-string p1, "Background"
 
     invoke-virtual {v0, p1}, Ljava/lang/String;->contains(Ljava/lang/CharSequence;)Z
 

@@ -287,7 +287,7 @@
     invoke-virtual {p1}, Lokhttp3/Request$Builder;->c()V
 
     .line 105
-    const-string v10, "接受"
+    const-string v10, "Accept"
 
     .line 107
     const-string v11, "*/*"

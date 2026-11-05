@@ -1667,7 +1667,7 @@
 
     .line 166
     .line 167
-    const-string v2, "升级"
+    const-string v2, "Upgrade"
 
     .line 168
     .line 169

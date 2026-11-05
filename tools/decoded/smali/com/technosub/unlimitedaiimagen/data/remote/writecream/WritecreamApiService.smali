@@ -830,7 +830,7 @@
     const-string v4, "error"
 
     .line 330
-    const-string v5, "未知错误"
+    const-string v5, "Unknown error"
 
     .line 332
     invoke-virtual {v0, v4, v5}, Lorg/json/JSONObject;->optString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;

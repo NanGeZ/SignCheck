@@ -599,7 +599,7 @@
     invoke-virtual {p1, v0, v1}, Ljava/net/URLConnection;->addRequestProperty(Ljava/lang/String;Ljava/lang/String;)V
 
     .line 26
-    const-string v0, "接受"
+    const-string v0, "Accept"
 
     .line 28
     invoke-virtual {p1, v0, v1}, Ljava/net/URLConnection;->addRequestProperty(Ljava/lang/String;Ljava/lang/String;)V

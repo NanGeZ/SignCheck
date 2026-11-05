@@ -296,7 +296,7 @@
     const/16 v1, 0xb
 
     .line 140
-    const-string v2, "搜索"
+    const-string v2, "Search"
 
     .line 142
     const-string v3, "SEARCHED"

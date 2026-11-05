@@ -73,7 +73,7 @@
 
     .line 17
     :cond_0
-    const-string p0, "新"
+    const-string p0, "New"
 
     .line 19
     :goto_0

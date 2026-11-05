@@ -217,7 +217,7 @@
     move-result-object v2
 
     .line 83
-    const-string v4, "张图片"
+    const-string v4, "images"
 
     .line 85
     invoke-virtual {v0}, Ljava/io/File;->getName()Ljava/lang/String;
@@ -316,7 +316,7 @@
     invoke-virtual {v2, v0}, Lokhttp3/Request$Builder;->f(Lokhttp3/RequestBody;)V
 
     .line 150
-    const-string v0, "接受"
+    const-string v0, "Accept"
 
     .line 152
     const-string v4, "application/json"
@@ -422,7 +422,7 @@
     invoke-direct {v0, v3}, Lorg/json/JSONObject;-><init>(Ljava/lang/String;)V
 
     .line 213
-    const-string v3, "未知错误"
+    const-string v3, "Unknown error"
 
     .line 215
     invoke-virtual {v0, v2, v3}, Lorg/json/JSONObject;->optString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;

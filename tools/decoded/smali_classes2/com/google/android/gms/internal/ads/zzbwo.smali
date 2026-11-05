@@ -412,7 +412,7 @@
 
     .line 83
     :cond_4
-    const-string v2, "接受"
+    const-string v2, "Accept"
 
     .line 84
     .line 85

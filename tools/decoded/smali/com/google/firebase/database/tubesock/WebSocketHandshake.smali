@@ -374,7 +374,7 @@
     const-string v1, "websocket"
 
     .line 92
-    const-string v3, "升级"
+    const-string v3, "Upgrade"
 
     .line 94
     invoke-virtual {v2, v3, v1}, Ljava/util/AbstractMap;->put(Ljava/lang/Object;Ljava/lang/Object;)Ljava/lang/Object;

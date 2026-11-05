@@ -106,7 +106,7 @@
     .locals 2
 
     .line 1
-    const-string v0, "张图片"
+    const-string v0, "images"
 
     .line 2
     .line 3

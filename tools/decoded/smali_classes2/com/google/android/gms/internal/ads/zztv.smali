@@ -143,7 +143,7 @@
 
     .line 17
     .line 18
-    const-string p0, "视频"
+    const-string p0, "Video"
 
     .line 19
     .line 20

@@ -4900,7 +4900,7 @@
 
     .line 718
     .line 719
-    const-string v14, "确定"
+    const-string v14, "OK"
 
     .line 720
     .line 721

@@ -257,7 +257,7 @@
     invoke-direct {v7}, Lorg/json/JSONObject;-><init>()V
 
     .line 104
-    const-string v8, "张图片"
+    const-string v8, "images"
 
     .line 106
     iget-object v9, v6, Liq3;->a:Ljava/lang/String;
@@ -322,7 +322,7 @@
     iget-object p0, p0, Lnq3;->d:Ljava/lang/String;
 
     .line 144
-    const-string v6, "张图片"
+    const-string v6, "images"
 
     .line 146
     invoke-virtual {v4, v6, v5}, Lorg/json/JSONObject;->put(Ljava/lang/String;Ljava/lang/Object;)Lorg/json/JSONObject;

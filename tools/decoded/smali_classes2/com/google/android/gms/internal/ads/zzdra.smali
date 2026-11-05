@@ -242,7 +242,7 @@
 
     .line 55
     .line 56
-    const-string v3, "张图片"
+    const-string v3, "images"
 
     .line 57
     .line 58
@@ -278,7 +278,7 @@
     move-object v0, v2
 
     .line 74
-    const-string v2, "张图片"
+    const-string v2, "images"
 
     .line 75
     .line 76

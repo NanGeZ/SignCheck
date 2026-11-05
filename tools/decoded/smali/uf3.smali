@@ -565,7 +565,7 @@
     invoke-direct {v1, v2, v5, v0}, Lrf0;-><init>(ZILjava/lang/Object;)V
 
     .line 397
-    const-string v0, "积分"
+    const-string v0, "points"
 
     .line 399
     invoke-static {p1, v0, v7, v1, v3}, Lmc5;->m(Ly13;Ljava/lang/String;Ljava/util/List;Lrf0;I)V

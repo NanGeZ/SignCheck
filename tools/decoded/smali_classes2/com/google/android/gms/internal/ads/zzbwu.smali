@@ -327,7 +327,7 @@
 
     .line 137
     :cond_6
-    const-string v4, "接受"
+    const-string v4, "Accept"
 
     .line 138
     .line 139

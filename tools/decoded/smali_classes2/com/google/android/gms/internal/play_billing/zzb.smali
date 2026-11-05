@@ -145,7 +145,7 @@
 
     .line 47
     .line 48
-    const-string v7, "确定"
+    const-string v7, "OK"
 
     .line 49
     .line 50

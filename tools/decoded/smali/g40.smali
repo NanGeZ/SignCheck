@@ -131,7 +131,7 @@
     invoke-virtual {p1}, Lokhttp3/Request$Builder;->c()V
 
     .line 35
-    const-string p0, "接受"
+    const-string p0, "Accept"
 
     .line 37
     const-string v2, "text/event-stream"

@@ -271,7 +271,7 @@
 
     .line 116
     :cond_4
-    const-string v6, "张图片"
+    const-string v6, "images"
 
     .line 117
     .line 118

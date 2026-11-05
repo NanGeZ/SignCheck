@@ -344,7 +344,7 @@
     const-string p1, "message"
 
     .line 79
-    const-string v3, "未知错误"
+    const-string v3, "Unknown error"
 
     .line 81
     invoke-virtual {v2, p1, v3}, Lorg/json/JSONObject;->optString(Ljava/lang/String;Ljava/lang/String;)Ljava/lang/String;
@@ -970,7 +970,7 @@
 
     .line 21
     :cond_0
-    const-string v2, "升级"
+    const-string v2, "Upgrade"
 
     .line 23
     invoke-virtual {v2, p1}, Ljava/lang/String;->equalsIgnoreCase(Ljava/lang/String;)Z

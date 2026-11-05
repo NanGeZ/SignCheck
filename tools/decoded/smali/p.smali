@@ -1613,7 +1613,7 @@
     move-result-object v0
 
     .line 1154
-    const-string v2, "所选图片为 "
+    const-string v2, "The selected image is "
 
     .line 1156
     const-string v3, "MB, which exceeds the 10MB limit.\n\nPlease choose a smaller image or compress your image before uploading."

@@ -52,7 +52,7 @@
     invoke-static {p0}, Lcom/google/android/gms/auth/zzl;->zzc(Ljava/lang/Object;)Ljava/lang/Object;
 
     .line 16
-    const-string p1, "错误"
+    const-string p1, "Error"
 
     .line 18
     invoke-virtual {p0, p1}, Landroid/os/BaseBundle;->getString(Ljava/lang/String;)Ljava/lang/String;

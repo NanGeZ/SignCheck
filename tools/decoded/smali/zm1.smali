@@ -595,7 +595,7 @@
     move-result-object v0
 
     .line 294
-    const-string v3, "检测到 OpenAI："
+    const-string v3, "OpenAI detected: "
 
     .line 296
     invoke-virtual {v3, v0}, Ljava/lang/String;->concat(Ljava/lang/String;)Ljava/lang/String;

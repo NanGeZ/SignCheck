@@ -228,7 +228,7 @@
     .line 48
     .line 49
     .line 50
-    const-string v3, "接受"
+    const-string v3, "Accept"
 
     .line 51
     .line 52

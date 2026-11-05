@@ -29,16 +29,21 @@ public final class AppProxy extends Application {
     @Override
     protected void attachBaseContext(Context base) {
         super.attachBaseContext(base);
-        SignGate.checkOrDie(base);          // fail closed：不通过直接杀进程
-        SignGate.markVerified();            // 放行原 Application 的 factory 实例化路径
-        String name = SignCheck.origApplicationName();
-        if (name != null) {
-            try {
+        /* checkOrDie 之前的任何异常（SignCheck static init 的 UnsatisfiedLinkError、
+         * payload 类 CNFE、原 Application 实例化失败）都必须走可见 fail-closed：
+         * 静默抛出只会留下无信息的"闪退"。failClosed 不返回。 */
+        try {
+            SignGate.checkOrDie(base);          // fail closed：不通过直接杀进程
+            SignGate.markVerified();            // 放行原 Application 的 factory 实例化路径
+            String name = SignCheck.origApplicationName();
+            if (name != null) {
                 Class<?> cls = base.getClassLoader().loadClass(name);
                 mOriginal = (Application) new Instrumentation().newApplication(cls, base);
-            } catch (Throwable t) {
-                throw new RuntimeException("AppProxy: cannot instantiate original Application: " + name, t);
             }
+        } catch (Throwable t) {
+            SignGate.failClosed(base, "AppProxy.attachBaseContext: "
+                    + android.util.Log.getStackTraceString(t));
+            throw new SecurityException("unreachable");   /* failClosed 不返回 */
         }
     }
 

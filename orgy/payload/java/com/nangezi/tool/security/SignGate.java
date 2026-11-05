@@ -81,10 +81,10 @@ public final class SignGate {
             verify(ctx);          // 首次未检
             return;
         }
-        if (cached != SignCheck.SC_OK || !sJavaTrusted.get()) failClosed("cached-bad");
+        if (cached != SignCheck.SC_OK || !sJavaTrusted.get()) failClosed(ctx, "cached-bad java=" + cached);
         // native 权威副本交叉：只改 Java 静态变量会在这一步暴露
         int authoritative = SignCheck.nativeLastStatus();
-        if (authoritative != cached) failClosed("state-desync java=" + cached + " native=" + authoritative);
+        if (authoritative != cached) failClosed(ctx, "state-desync java=" + cached + " native=" + authoritative);
         if (System.currentTimeMillis() - sLastCheckMs > RECHECK_INTERVAL_MS) verify(ctx);
     }
 
@@ -126,7 +126,10 @@ public final class SignGate {
             String binderSha = binderCertSha256(ctx); // null = 通道不可用（降级放行）
 
             boolean javaOk = jr != null && jr.status == ApkV2SignerVerifier.Status.PASS;
-            boolean pmOk = expected.equals(pmSha);
+            /* pm 拿不到（null）与 binder 同语义降级放行：拿不到 ≠ 被篡改——
+             * 篡改者会让 PM 返回【错误的】签名而非抛异常；native/java 两个独立
+             * 通道仍直接读 APK 字节全量校验。拿到但不匹配仍一律杀进程。 */
+            boolean pmOk = pmSha == null || expected.equals(pmSha);
             boolean binderOk = binderSha == null || expected.equals(binderSha);
 
             sNativeStatus.set(nativeSt);

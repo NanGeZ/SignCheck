@@ -1,0 +1,38 @@
+.class public Lcom/google/android/gms/fido/u2f/api/common/ChannelIdValue$UnsupportedChannelIdValueTypeException;
+.super Ljava/lang/Exception;
+.source "SourceFile"
+
+
+# annotations
+.annotation system Ldalvik/annotation/EnclosingClass;
+    value = Lcom/google/android/gms/fido/u2f/api/common/ChannelIdValue;
+.end annotation
+
+.annotation system Ldalvik/annotation/InnerClass;
+    accessFlags = 0x9
+    name = "UnsupportedChannelIdValueTypeException"
+.end annotation
+
+
+# direct methods
+.method public constructor <init>(I)V
+    .locals 2
+
+    .line 1
+    const-string v0, "ChannelIdValueType "
+
+    .line 3
+    const-string v1, " not supported"
+
+    .line 5
+    invoke-static {p1, v0, v1}, Leh0;->j(ILjava/lang/String;Ljava/lang/String;)Ljava/lang/String;
+
+    .line 8
+    move-result-object p1
+
+    .line 9
+    invoke-direct {p0, p1}, Ljava/lang/Exception;-><init>(Ljava/lang/String;)V
+
+    .line 12
+    return-void
+.end method

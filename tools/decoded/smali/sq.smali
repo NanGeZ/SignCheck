@@ -1,0 +1,50 @@
+.class public final synthetic Lsq;
+.super Ljava/lang/Object;
+.source "SourceFile"
+
+# interfaces
+.implements Lcom/facebook/GraphRequest$Callback;
+
+
+# instance fields
+.field public final synthetic a:B
+
+
+# direct methods
+.method public synthetic constructor <init>(B)V
+    .locals 0
+
+    .line 1
+    iput-byte p1, p0, Lsq;->a:B
+
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    return-void
+.end method
+
+
+# virtual methods
+.method public final onCompleted(Lcom/facebook/GraphResponse;)V
+    .locals 0
+
+    .line 1
+    iget-byte p0, p0, Lsq;->a:B
+
+    packed-switch p0, :pswitch_data_0
+
+    invoke-static {p1}, Lcom/facebook/appevents/codeless/ViewIndexer$Companion;->a(Lcom/facebook/GraphResponse;)V
+
+    return-void
+
+    :pswitch_0
+    invoke-static {p1}, Lcom/facebook/appevents/cloudbridge/AppEventsCAPIManager;->a(Lcom/facebook/GraphResponse;)V
+
+    return-void
+
+    nop
+
+    :pswitch_data_0
+    .packed-switch 0x0
+        :pswitch_0
+    .end packed-switch
+.end method

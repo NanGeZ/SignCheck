@@ -1,0 +1,75 @@
+.class Lcom/google/firebase/database/core/utilities/Utilities$1;
+.super Ljava/lang/Object;
+.source "SourceFile"
+
+# interfaces
+.implements Lcom/google/firebase/database/DatabaseReference$CompletionListener;
+
+
+# annotations
+.annotation system Ldalvik/annotation/EnclosingMethod;
+    value = Lcom/google/firebase/database/core/utilities/Utilities;->wrapOnComplete(Lcom/google/firebase/database/DatabaseReference$CompletionListener;)Lcom/google/firebase/database/core/utilities/Pair;
+.end annotation
+
+.annotation system Ldalvik/annotation/InnerClass;
+    accessFlags = 0x1
+    name = null
+.end annotation
+
+
+# instance fields
+.field final synthetic val$source:Lcom/google/android/gms/tasks/TaskCompletionSource;
+
+
+# direct methods
+.method public constructor <init>(Lcom/google/android/gms/tasks/TaskCompletionSource;)V
+    .locals 0
+    .annotation system Ldalvik/annotation/Signature;
+        value = {
+            "()V"
+        }
+    .end annotation
+
+    .line 1
+    iput-object p1, p0, Lcom/google/firebase/database/core/utilities/Utilities$1;->val$source:Lcom/google/android/gms/tasks/TaskCompletionSource;
+
+    .line 3
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    .line 6
+    return-void
+.end method
+
+
+# virtual methods
+.method public onComplete(Lcom/google/firebase/database/DatabaseError;Lcom/google/firebase/database/DatabaseReference;)V
+    .locals 0
+
+    .line 1
+    iget-object p0, p0, Lcom/google/firebase/database/core/utilities/Utilities$1;->val$source:Lcom/google/android/gms/tasks/TaskCompletionSource;
+
+    .line 3
+    if-eqz p1, :cond_0
+
+    .line 5
+    invoke-virtual {p1}, Lcom/google/firebase/database/DatabaseError;->toException()Lcom/google/firebase/database/DatabaseException;
+
+    .line 8
+    move-result-object p1
+
+    .line 9
+    invoke-virtual {p0, p1}, Lcom/google/android/gms/tasks/TaskCompletionSource;->setException(Ljava/lang/Exception;)V
+
+    .line 12
+    return-void
+
+    .line 13
+    :cond_0
+    const/4 p1, 0x0
+
+    .line 14
+    invoke-virtual {p0, p1}, Lcom/google/android/gms/tasks/TaskCompletionSource;->setResult(Ljava/lang/Object;)V
+
+    .line 17
+    return-void
+.end method

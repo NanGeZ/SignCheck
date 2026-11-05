@@ -1,0 +1,18 @@
+.class public abstract Landroidx/compose/ui/input/rotary/a;
+.super Ljava/lang/Object;
+.source "SourceFile"
+
+
+# direct methods
+.method public static final a()Lzw2;
+    .locals 1
+
+    .line 1
+    new-instance v0, Landroidx/compose/ui/input/rotary/RotaryInputElement;
+
+    .line 3
+    invoke-direct {v0}, Ljava/lang/Object;-><init>()V
+
+    .line 6
+    return-object v0
+.end method

@@ -1,0 +1,38 @@
+.class public abstract Lcom/google/firebase/database/ktx/ChildEvent;
+.super Ljava/lang/Object;
+.source "SourceFile"
+
+
+# annotations
+.annotation system Ldalvik/annotation/MemberClasses;
+    value = {
+        Lcom/google/firebase/database/ktx/ChildEvent$Added;,
+        Lcom/google/firebase/database/ktx/ChildEvent$Changed;,
+        Lcom/google/firebase/database/ktx/ChildEvent$Moved;,
+        Lcom/google/firebase/database/ktx/ChildEvent$Removed;
+    }
+.end annotation
+
+.annotation runtime Luv0;
+.end annotation
+
+
+# direct methods
+.method private constructor <init>()V
+    .locals 0
+
+    .line 5
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    return-void
+.end method
+
+.method public synthetic constructor <init>(Lsr0;)V
+    .locals 0
+
+    .line 1
+    invoke-direct {p0}, Lcom/google/firebase/database/ktx/ChildEvent;-><init>()V
+
+    .line 4
+    return-void
+.end method

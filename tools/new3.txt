@@ -1,0 +1,130 @@
+AI Generated Video
+AI Generated Video from PhotoFlux AI
+AI-powered image enhancement suite
+AI-powered professional photo retouching
+AIEditViewModel
+Automatically colorizing restored photo...
+Automatically upscale images with AI
+BingImageCreator
+Bring old black & white photos to life with beautiful, natural colors
+Colorize Photos
+Colorizing is taking longer than expected. Please try again.
+Content blocked by safety filter
+ContentModeration
+Could not open image file
+Create stunning images from text prompts
+Daily limit reached (
+Denoise
+Downloading your AI video...
+Enhance
+Enhance image quality and details
+Enhance this image.
+Enhance your photos with AI magic
+Error sharing image
+Extend image boundaries with AI
+Extending image with AI...
+FLUX Kontext Edit is a premium feature. Subscribe to unlock!
+File size too large (
+GenerateScreen
+GenerateViewModel
+INTEGER
+Image Extend
+Image dimensions too large. Maximum is 8192x8192 pixels.
+Image edited successfully!
+Image is too large. Maximum size is 50MB.
+Image processing completed but no image URL received. Please try again.
+Image saved to Gallery successfully!
+Image to Video
+ImageEditRepo
+ImageToVideoScreen
+ImageToVideoViewModel
+Invalid image selected
+Invalid or corrupted image file.
+Job created successfully
+Make it look like 3D rendered graphics.
+Make it look like Asian photography style.
+Make it look like Halloween spooky theme.
+Make it look like Japanese anime style.
+Make it look like Studio Ghibli anime art style.
+Make it look like Victorian steampunk.
+Make it look like abstract artistic style.
+Make it look like animation screenshot style.
+Make it look like cartoon style.
+Make it look like clean line art.
+Make it look like comic book art.
+Make it look like cyber realistic style.
+Make it look like cyberpunk futuristic style.
+Make it look like digital painting art.
+Make it look like fantasy art.
+Make it look like minimalist design.
+Make it look like pet photography.
+Make it look like vintage retro style.
+Make it look like watercolor painting.
+Make it photorealistic ultra-realistic photography.
+No browser app found to open link
+No image URL available for saving
+No image URL available for sharing
+No image available to save. Please process an image first.
+No image available to share. Please process an image first.
+No images selected for sharing
+No job ID or output URL received
+No videos available for sharing
+Origin
+Permission denied. Please grant storage access to save images.
+Photo Retouch
+PhotoFlux
+PhotoFluxAI
+Please enter a prompt or select an art style
+Please save the video first before sharing
+Please select a style
+Precise control with crop, rotate, brightness, contrast, saturation, and more editing tools.
+Processing service unavailable
+Processing timeout after 10 minutes. The image may still be processing. Please try again later.
+Processing was rejected by the service
+Processing... (
+Professional editing tools at your fingertips
+Prompt contains inappropriate words. Please enter a descriptive prompt.
+Prompt copied to clipboard
+REAL
+Received empty image URL from processing service
+Referer
+Remove blur and sharpen images
+Remove noise from images
+Retouching photo with AI...
+Saved to gallery!
+Share Enhanced Image
+Share Enhanced Images
+Share Image
+Share Video
+Share dialog opened successfully!
+Share intent launched successfully
+ShareImage
+Starting image extension...
+Starting photo retouch...
+Storage permission required to save images
+StudioViewModel
+TEXT
+Transform images into videos with AI
+Unable to decode image.
+Unable to open asset.
+Unable to process image. Please try again later.
+Unable to share video
+Unable to share video. Please save it first.
+Unable to share videos
+Unblur
+Upload an image and describe the motion to generate stunning AI-powered videos.
+Upload your images and let AI edit them with prompt-based editing and style transfer.
+Uploading image...
+Uploading to server...
+Upscale, unblur, restore old photos, enhance quality, denoise, and process videos with advanced AI.
+Upscaler
+UpscalingHistoryViewModel
+UpscalingRepository
+User-Agent
+Video Prompt
+Video not available for sharing
+VideoAspectRatioCrop
+VideoHistory
+VideoHistoryScreen
+Watch more ads to earn points!
+WritecreamApi

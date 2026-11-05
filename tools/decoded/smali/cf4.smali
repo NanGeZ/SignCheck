@@ -1,0 +1,181 @@
+.class public final Lcf4;
+.super Ljava/lang/Object;
+.source "SourceFile"
+
+
+# instance fields
+.field public final a:Ljava/lang/CharSequence;
+
+.field public final b:I
+
+.field public final c:Landroid/text/TextPaint;
+
+.field public final d:I
+
+.field public final e:Landroid/text/TextDirectionHeuristic;
+
+.field public final f:Landroid/text/Layout$Alignment;
+
+.field public final g:I
+
+.field public final h:Landroid/text/TextUtils$TruncateAt;
+
+.field public final i:I
+
+.field public final j:I
+
+.field public final k:Z
+
+.field public final l:I
+
+.field public final m:I
+
+.field public final n:I
+
+.field public final o:I
+
+
+# direct methods
+.method public constructor <init>(Ljava/lang/CharSequence;ILandroid/text/TextPaint;ILandroid/text/TextDirectionHeuristic;Landroid/text/Layout$Alignment;ILandroid/text/TextUtils$TruncateAt;IIZIIII)V
+    .locals 0
+
+    .line 1
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    .line 4
+    iput-object p1, p0, Lcf4;->a:Ljava/lang/CharSequence;
+
+    .line 6
+    iput p2, p0, Lcf4;->b:I
+
+    .line 8
+    iput-object p3, p0, Lcf4;->c:Landroid/text/TextPaint;
+
+    .line 10
+    iput p4, p0, Lcf4;->d:I
+
+    .line 12
+    iput-object p5, p0, Lcf4;->e:Landroid/text/TextDirectionHeuristic;
+
+    .line 14
+    iput-object p6, p0, Lcf4;->f:Landroid/text/Layout$Alignment;
+
+    .line 16
+    iput p7, p0, Lcf4;->g:I
+
+    .line 18
+    iput-object p8, p0, Lcf4;->h:Landroid/text/TextUtils$TruncateAt;
+
+    .line 20
+    iput p9, p0, Lcf4;->i:I
+
+    .line 22
+    iput p10, p0, Lcf4;->j:I
+
+    .line 24
+    iput-boolean p11, p0, Lcf4;->k:Z
+
+    .line 26
+    iput p12, p0, Lcf4;->l:I
+
+    .line 28
+    iput p13, p0, Lcf4;->m:I
+
+    .line 30
+    iput p14, p0, Lcf4;->n:I
+
+    .line 32
+    iput p15, p0, Lcf4;->o:I
+
+    .line 34
+    if-ltz p2, :cond_4
+
+    .line 36
+    invoke-interface {p1}, Ljava/lang/CharSequence;->length()I
+
+    .line 39
+    move-result p0
+
+    .line 40
+    if-ltz p2, :cond_3
+
+    .line 42
+    if-gt p2, p0, :cond_3
+
+    .line 44
+    if-ltz p7, :cond_2
+
+    .line 46
+    if-ltz p4, :cond_1
+
+    .line 48
+    if-ltz p9, :cond_0
+
+    .line 50
+    return-void
+
+    .line 51
+    :cond_0
+    const-string p0, "invalid ellipsizedWidth value"
+
+    .line 53
+    invoke-static {p0}, Lro;->h(Ljava/lang/String;)V
+
+    .line 56
+    const/4 p0, 0x0
+
+    .line 57
+    throw p0
+
+    .line 58
+    :cond_1
+    const-string p0, "invalid width value"
+
+    .line 60
+    invoke-static {p0}, Lro;->h(Ljava/lang/String;)V
+
+    .line 63
+    const/4 p0, 0x0
+
+    .line 64
+    throw p0
+
+    .line 65
+    :cond_2
+    const-string p0, "invalid maxLines value"
+
+    .line 67
+    invoke-static {p0}, Lro;->h(Ljava/lang/String;)V
+
+    .line 70
+    const/4 p0, 0x0
+
+    .line 71
+    throw p0
+
+    .line 72
+    :cond_3
+    const-string p0, "invalid end value"
+
+    .line 74
+    invoke-static {p0}, Lro;->h(Ljava/lang/String;)V
+
+    .line 77
+    const/4 p0, 0x0
+
+    .line 78
+    throw p0
+
+    .line 79
+    :cond_4
+    const-string p0, "invalid start value"
+
+    .line 81
+    invoke-static {p0}, Lro;->h(Ljava/lang/String;)V
+
+    .line 84
+    const/4 p0, 0x0
+
+    .line 85
+    throw p0
+.end method

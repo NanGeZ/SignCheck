@@ -1,0 +1,235 @@
+.class public final Lvi;
+.super Ljava/lang/Object;
+.source "SourceFile"
+
+# interfaces
+.implements Lld3;
+
+
+# instance fields
+.field public final a:Landroid/graphics/Path;
+
+.field public b:Landroid/graphics/RectF;
+
+.field public c:[F
+
+.field public d:Landroid/graphics/Matrix;
+
+
+# direct methods
+.method public constructor <init>(Landroid/graphics/Path;)V
+    .locals 0
+
+    .line 1
+    invoke-direct {p0}, Ljava/lang/Object;-><init>()V
+
+    .line 4
+    iput-object p1, p0, Lvi;->a:Landroid/graphics/Path;
+
+    .line 6
+    return-void
+.end method
+
+
+# virtual methods
+.method public final c()Lhs3;
+    .locals 4
+
+    .line 1
+    iget-object v0, p0, Lvi;->b:Landroid/graphics/RectF;
+
+    .line 3
+    if-nez v0, :cond_0
+
+    .line 5
+    new-instance v0, Landroid/graphics/RectF;
+
+    .line 7
+    invoke-direct {v0}, Landroid/graphics/RectF;-><init>()V
+
+    .line 10
+    iput-object v0, p0, Lvi;->b:Landroid/graphics/RectF;
+
+    .line 12
+    :cond_0
+    iget-object p0, p0, Lvi;->a:Landroid/graphics/Path;
+
+    .line 14
+    const/4 v1, 0x1
+
+    .line 15
+    invoke-virtual {p0, v0, v1}, Landroid/graphics/Path;->computeBounds(Landroid/graphics/RectF;Z)V
+
+    .line 18
+    new-instance p0, Lhs3;
+
+    .line 20
+    iget v1, v0, Landroid/graphics/RectF;->left:F
+
+    .line 22
+    iget v2, v0, Landroid/graphics/RectF;->top:F
+
+    .line 24
+    iget v3, v0, Landroid/graphics/RectF;->right:F
+
+    .line 26
+    iget v0, v0, Landroid/graphics/RectF;->bottom:F
+
+    .line 28
+    invoke-direct {p0, v1, v2, v3, v0}, Lhs3;-><init>(FFFF)V
+
+    .line 31
+    return-object p0
+.end method
+
+.method public final d(FF)V
+    .locals 0
+
+    .line 1
+    iget-object p0, p0, Lvi;->a:Landroid/graphics/Path;
+
+    .line 3
+    invoke-virtual {p0, p1, p2}, Landroid/graphics/Path;->lineTo(FF)V
+
+    .line 6
+    return-void
+.end method
+
+.method public final e(FF)V
+    .locals 0
+
+    .line 1
+    iget-object p0, p0, Lvi;->a:Landroid/graphics/Path;
+
+    .line 3
+    invoke-virtual {p0, p1, p2}, Landroid/graphics/Path;->moveTo(FF)V
+
+    .line 6
+    return-void
+.end method
+
+.method public final f(Lld3;Lld3;I)Z
+    .locals 3
+
+    .line 1
+    if-nez p3, :cond_0
+
+    .line 3
+    sget-object p3, Landroid/graphics/Path$Op;->DIFFERENCE:Landroid/graphics/Path$Op;
+
+    .line 5
+    goto :goto_0
+
+    .line 6
+    :cond_0
+    const/4 v0, 0x1
+
+    .line 7
+    if-ne p3, v0, :cond_1
+
+    .line 9
+    sget-object p3, Landroid/graphics/Path$Op;->INTERSECT:Landroid/graphics/Path$Op;
+
+    .line 11
+    goto :goto_0
+
+    .line 12
+    :cond_1
+    const/4 v0, 0x4
+
+    .line 13
+    if-ne p3, v0, :cond_2
+
+    .line 15
+    sget-object p3, Landroid/graphics/Path$Op;->REVERSE_DIFFERENCE:Landroid/graphics/Path$Op;
+
+    .line 17
+    goto :goto_0
+
+    .line 18
+    :cond_2
+    const/4 v0, 0x2
+
+    .line 19
+    if-ne p3, v0, :cond_3
+
+    .line 21
+    sget-object p3, Landroid/graphics/Path$Op;->UNION:Landroid/graphics/Path$Op;
+
+    .line 23
+    goto :goto_0
+
+    .line 24
+    :cond_3
+    sget-object p3, Landroid/graphics/Path$Op;->XOR:Landroid/graphics/Path$Op;
+
+    .line 26
+    :goto_0
+    instance-of v0, p1, Lvi;
+
+    .line 28
+    const/4 v1, 0x0
+
+    .line 29
+    const-string v2, "Unable to obtain android.graphics.Path"
+
+    .line 31
+    if-eqz v0, :cond_5
+
+    .line 33
+    check-cast p1, Lvi;
+
+    .line 35
+    iget-object p1, p1, Lvi;->a:Landroid/graphics/Path;
+
+    .line 37
+    instance-of v0, p2, Lvi;
+
+    .line 39
+    if-eqz v0, :cond_4
+
+    .line 41
+    check-cast p2, Lvi;
+
+    .line 43
+    iget-object p2, p2, Lvi;->a:Landroid/graphics/Path;
+
+    .line 45
+    iget-object p0, p0, Lvi;->a:Landroid/graphics/Path;
+
+    .line 47
+    invoke-virtual {p0, p1, p2, p3}, Landroid/graphics/Path;->op(Landroid/graphics/Path;Landroid/graphics/Path;Landroid/graphics/Path$Op;)Z
+
+    .line 50
+    move-result p0
+
+    .line 51
+    return p0
+
+    .line 52
+    :cond_4
+    invoke-static {v2}, Lu21;->i(Ljava/lang/String;)V
+
+    .line 55
+    return v1
+
+    .line 56
+    :cond_5
+    invoke-static {v2}, Lu21;->i(Ljava/lang/String;)V
+
+    .line 59
+    return v1
+.end method
+
+.method public final g()V
+    .locals 0
+
+    .line 1
+    iget-object p0, p0, Lvi;->a:Landroid/graphics/Path;
+
+    .line 3
+    invoke-virtual {p0}, Landroid/graphics/Path;->reset()V
+
+    .line 6
+    return-void
+.end method

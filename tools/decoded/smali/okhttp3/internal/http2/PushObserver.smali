@@ -1,0 +1,36 @@
+.class public interface abstract Lokhttp3/internal/http2/PushObserver;
+.super Ljava/lang/Object;
+.source "SourceFile"
+
+
+# annotations
+.annotation system Ldalvik/annotation/MemberClasses;
+    value = {
+        Lokhttp3/internal/http2/PushObserver$Companion;
+    }
+.end annotation
+
+
+# static fields
+.field public static final a:Lokhttp3/internal/http2/PushObserver;
+
+
+# direct methods
+.method static constructor <clinit>()V
+    .locals 1
+
+    .line 1
+    sget v0, Lokhttp3/internal/http2/PushObserver$Companion;->a:I
+
+    .line 3
+    new-instance v0, Lokhttp3/internal/http2/PushObserver$Companion$PushObserverCancel;
+
+    .line 5
+    invoke-direct {v0}, Lokhttp3/internal/http2/PushObserver$Companion$PushObserverCancel;-><init>()V
+
+    .line 8
+    sput-object v0, Lokhttp3/internal/http2/PushObserver;->a:Lokhttp3/internal/http2/PushObserver;
+
+    .line 10
+    return-void
+.end method

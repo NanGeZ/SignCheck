@@ -1,0 +1,618 @@
+A beautiful landscape with mountains and a lake at sunset...
+AAC header wrong Sampling Frequency Index
+Abstract
+Account
+ActiveParent with no focused child
+Ad-Free
+Ad-Free Experience
+Add
+Add image
+Advance
+Advance Options
+Advanced
+Advanced Image Options
+Advanced Mode Unlocked!
+Advanced Options
+Advanced Options Unlocked
+Advanced Styles Pack
+AI Art Style
+AI content standards & built-in filtering
+AI Edit
+AI Edited
+AI Editing Tools
+AI features require an active internet connection
+AI Generated
+AI Generated Images
+AI Image Editing
+AI Model
+AI Model Selector
+AI Prompt Editing is available for Premium subscribers only
+AI result
+AI Video Filters
+All
+All AI Models Unlocked
+All features will be unlocked for 24 hours.
+All Models
+Animation
+Anime
+Anime, manga, Japanese art styles, character illustrations.
+Annotation
+Any
+Any ratio
+App Information
+Apply
+Apply Advanced
+Apply All
+Apply Changes
+Apply Filter
+Apply Style
+Are you sure you want to delete this edited image?
+Are you sure you want to delete this image from your history?
+Artistic content, creative projects, aesthetic images.
+Artistic styles, fantasy art, creative illustrations, stylized images.
+ASC
+Asian Photography
+Aspect Ratio
+Auto Select
+Auto Select (
+Auto-corrected
+Auto-playing
+Back
+Back to Watch Ad option
+Batch Generation (4 images)
+BETA
+Boolean
+Bright Daylight
+Brightness
+By signing in, you agree to our Terms of Service and Privacy Policy
+Byte
+Cancel Generation
+Cancel or modify your subscription on Google Play
+Cancel selection
+Cartoon
+Change
+Change Image
+Char
+Characters
+CharSequence
+Choose Edit Mode
+Choose Editing Mode
+Choose Enhancement Tool
+Choose from 7 premium AI models including FLUX, Stable Diffusion, Japanese SD XL, and more!
+Choose from your photos
+Choose Image
+Choose Image Source
+Choose Your Creative Tool
+Clamp
+Clear all
+Clear auto-correct message
+Clear error
+Clear flagged words info
+Cloneable
+Close
+Close preview
+Close-up Portrait
+Cmyk
+Collection
+Collection contains no element matching the predicate.
+Collection has more than one element.
+Collection is empty.
+Come Back Tomorrow
+Come back tomorrow for another 10 points!
+Comic Book
+Coming Soon
+Companion
+Comparable
+Completed
+Container
+Content found after the end of file
+Content Guidelines
+Content reported. Thank you for helping us improve!
+Continue as Guest
+Contrast
+Cool Tones
+Could not decode image data
+Could not fetch interop view
+Could not find focus target of embedded view wrapper
+Count overflow has happened.
+Create account
+Create an account
+Create stunning images with AI
+Create, Edit, and Enhance images with the power of AI
+Crop
+Crop Image
+Crop to supported aspect ratio
+Crop, Filters, background tools
+Cropped Preview
+CSLCompat
+CURRENT PLAN
+Cyberpunk
+CyberRealistic
+Daily Limit
+Daily limit reached
+Dark Mode
+DataStore scope was cancelled before updateData could complete
+Deactivated node is focused
+Decal
+Default
+Delete
+Delete Edit
+Delete Images
+Delete images
+Delete selected
+Delete Videos
+DESC
+Describe how you want to modify this image...
+Describe the motion
+Describe your edit
+Describe your image
+Device Gallery
+Digital Painting
+Disabled
+Dismiss
+Dispatching rotary event while focus system is invalidated.
+Double
+Dramatic Cinematic Lighting
+Dutch Angle (tilted)
+Earn +3 Points per ad
+Earn 3 points by watching each rewarded ad
+Earn Free Points
+Earned
+Edit
+Edit image
+Edit Options
+Edit Prompt
+Edit with AI
+Edited
+Edited image
+Editing Tools
+Email
+Enabled
+Enhance & Upscale
+Enhance & Upscale Image
+Enhance Quality
+Enhance resolution & quality
+Enhanced image
+Enhanced Result
+Enjoy Premium features!
+Enter details about the problem...
+Entry
+Enum
+Error
+Error sharing images
+Exit selection
+Expand
+Expected a string of even length
+Expected AndroidViewHolder to be attached when observing reads.
+Eye-Level View
+Facebook
+Facebook sign-in
+Fantasy Art
+Fast generation, simpler images, bulk creation, testing ideas.
+Favorite
+Feature will be unlocked for 5 hours.
+Filter Preview
+FireBloom AI
+FireBloom API
+Flagged words
+Float
+FloatAnimation
+FLUX Dev
+FLUX Schnell
+Focus search landed at the root.
+FocusRelatedWarning: Dispatching intercepted soft keyboard event while the focus system is invalidated.
+Forgot password?
+Full Body Shot
+Full image preview
+Full Screen
+Full size image
+Fullscreen preview
+Future was expected to be done: %s
+GContainer
+GContainerItem
+General image generation.
+General purpose, balanced quality and speed. Great default choice for most images.
+Generate 4 images at once instead of 2
+Generate Images
+Generate some images first to see them here!
+Generate unlimited HD images with Zero ads
+Generate Video
+Generated image
+Generated Images
+Generating your video...
+Generation History
+Get +3 Points Instantly!
+Get 10 bonus points every day automatically!
+Get More Generations
+Ghibli Art
+Go Ad-free
+Go Premium
+GO PREMIUM
+Go Premium - No Ads
+Google
+Google sign-in
+Got it
+Guest User
+Halloween
+Haptic Feedback
+HD Image Generation
+Hide password
+High Angle (looking down)
+High-quality artistic output
+Hint
+History
+Hot
+How Points Work
+How would you like to edit this image?
+IconCompat
+Image adjusted to fit video frame
+Image Editing Studio
+Image to crop
+Image Too Large
+Image Upload
+Image upload may not work right now. You can still try, or generate without a reference image.
+Image Upscaling Tools
+ImageBitmap
+ImageVector
+ImageVector.Builder is single use, create a new instance to create a new ImageVector
+Improves overall image quality by sharpening details, adjusting lighting, and enhancing colors. Best for photos that look dull, lack contrast, or need general improvement.
+In Queue
+Index overflow has happened.
+Indices are out of order. fromIndex (
+Infinity
+Inflater did not finish
+Info
+Instagram
+Install & Restart
+Int
+Intelligently enlarges images up to 4x original size while preserving sharp details and textures. Perfect for low-resolution photos, social media images, or artwork that needs higher resolution.
+Invalid
+Invalid focus direction
+Invalid input received
+Invalid Keyboard Type
+Invalid magic
+Invalid mask pattern
+Invalid rect
+Item
+Iterable
+Iterator
+Japanese SD XL
+Lab
+Label
+Later
+LayoutCoordinates is not attached.
+Leading
+Lifetime Access
+LIFETIME PREMIUM
+Lightning-fast generation
+Line Art
+List
+ListIterator
+Loading image...
+Loading your creations...
+LocalAutofillTree
+LocalClipboardManager
+LocalConfiguration
+LocalContext
+LocalDensity
+LocalFocusManager
+LocalFontFamilyResolver
+LocalFontLoader
+LocalGraphicsContext
+LocalHapticFeedback
+LocalImageVectorCache
+LocalInputManager
+LocalResourceIdCache
+LocalView
+Locked
+Long
+Long press to copy
+Long press to select multiple videos
+Low Angle (looking up)
+Macro Shot
+Magistra
+Magistra AI
+Magnifier is only supported on API level 28 and higher.
+MAINTENANCE
+Manage Subscription
+Manage your subscription
+Map
+Maybe Later
+Medium Shot
+Minimalist
+Mirror
+Mismatched number of dex files found in metadata
+Model Features:
+Model Selection Locked
+Modify and regenerate
+Monet
+Monochromatic B&W
+MONTHLY
+Moody Moonlight
+Muted and Earthy
+NaN
+NavUtils
+Neon Glow
+NEW
+New accounts start with 20 free points
+No ActivityResultRegistryOwner was provided via LocalActivityResultRegistryOwner
+No AI Edits Yet
+No AI images yet
+No components
+No edits
+No extra pages
+No history
+No image
+No images
+No images yet
+No Internet
+No Internet Connection
+No lifecycle owner exists
+No nodes can be emitted before calling dactivateToEndGroup
+No OnBackPressedDispatcherOwner was provided via LocalOnBackPressedDispatcherOwner
+No path data available
+No prompt
+No start tag found
+No upscaled images yet
+No videos yet
+No ViewModelStoreOwner was provided via LocalViewModelStoreOwner
+Not Now
+Number
+Oil Painting
+Okio Watchdog
+Only add dependencies during a tracking
+Only VectorDrawables and rasterized asset types are supported ex. PNG, JPG, WEBP
+Oops! Something went wrong
+Optional
+Order of dexfiles in metadata did not match baseline
+Orientation
+Original
+Original aspect ratio
+Original image
+Other options
+Out of range: %s
+Output Aspect Ratio
+Package manager required to locate emoji font provider
+Painter
+Perfect for anime & manga
+Pet Photography
+Photo Filters
+Photorealistic
+Photorealistic images, detailed scenes, product photography, portraits.
+Picasso
+Playback error
+Playground v2.5
+Please describe the issue
+Please keep the App opened for successful Video generation.
+Please select an image smaller than 24MB.
+Please select the reason for reporting this content:
+PNG, JPG up to 10MB
+Points Available
+Popular
+Powered by Flux Kontext Pro
+Preferences
+Prefix
+PREMIUM
+Premium
+Premium Feature
+Privacy Policy
+Pro
+Process
+Processing image...
+Professional AI-powered photo retouching that enhances portraits and photos with advanced algorithms. Improves skin texture, lighting, and overall photo quality while maintaining natural appearance.
+Profile Picture
+Prompt
+Queued
+Queued - Waiting to start...
+Quick previews, prototyping, high-volume generation. Fastest model with good quality.
+Rate Limited
+Rate us 5 stars on Play Store
+Re-initializing focus target node.
+Re-show GDPR consent form
+Read too much data during profile line parse
+Ready to take your creativity to the next level?
+Realtime
+Realtime AI
+Realtime AI Not here
+Realtime supported
+Recent AI Generated Images
+Recomposer effect job completed
+Redo
+ReferentialEqualityPolicy
+Remove Background
+Remove backgrounds, retouch photos, or use AI Edit to see your history here
+Remove image
+Removes digital noise, grain, and artifacts from images while preserving important details. Perfect for photos taken in low light or high ISO settings.
+Removes motion blur, camera shake, and focus blur using advanced AI algorithms. Ideal for photos taken in low light, moving subjects, or with camera shake.
+Repeated
+Report
+Report Content
+Report Generated Images
+Required value was null.
+Requires new Baseline Profile Metadata. Please rebuild the APK with Android Gradle Plugin 7.2 Canary 7 or higher
+Reset
+Reset Ad Consent
+Reset all adjustments
+Retouch Photo
+Retro
+Retry
+Retrying
+Rgb
+Rotation
+SafeBitmapUtils
+Saturation
+Save
+Save All
+Save to gallery
+Saved
+Saved successfully
+Saving
+Scroll animation cancelled because scroll was not consumed (
+Select
+Select all
+Select Crop
+Select crop area and apply
+Select Image
+Select Image (
+Select images to delete
+Select images to share
+Select multiple videos
+Select videos to delete
+Select where to get your image from
+Selected image
+Selected image - tap to view full size
+Send feedback & suggestions
+Sentences
+Set
+Share (
+Share image
+Share Images
+Share images
+Share selected
+Share with friends & family
+ShareImages
+Short
+Show password
+Sign in to start creating amazing images
+Sign in to sync your data across devices
+Sign Out
+Size is unspecified
+Skip next 2 ads (1 hour)
+Skipping remainder of malformed SEI NAL unit.
+Slot table is out of sync
+Soft Studio Lighting
+Speed Up Next Generation
+Spent
+Sponsored
+Stable Diffusion XL
+Start
+Start creating amazing images with AI to see them here!
+Start enhancing images to see them here
+Start Premium Now
+Status
+Steampunk
+Step is zero.
+String
+StructuralEqualityPolicy
+Studio
+Style
+Subscription
+Success
+Successfully Submitted!
+Suffix
+Supporting
+Tap anywhere to close
+Tap on cross to close
+Tap to preview
+Tap to upload image
+Target Aspect Ratio
+Terms of Service
+TextField
+TextFieldInputState
+The camera slowly zooms in while leaves gently sway in the breeze...
+The expandedHeight is expected to be specified and finite
+The string is empty
+The update has been downloaded and is ready to install. The app will restart to complete the installation.
+These images will be used as reference for AI generation
+This is a critical update with important improvements and bug fixes. We strongly recommend updating now.
+This is an optional feature. Watch a short video ad to unlock for 5 hours!
+This model will be permanently unlocked and can be set as your default.
+This node does not have an owner.
+This update includes new features and improvements to enhance your experience.
+Throwable
+Tip: Describe the camera movement, object motion, or scene changes
+Trailing
+Turbo Generate
+Turbo Generating...
+Turbo Mode
+Typically takes 2-3 minutes.
+Ultra-realistic photos
+Unable to acquire a lock on the underlying file channel.
+Unable to get icon package
+Unable to parse preferences proto.
+Unable to play video
+Under maintenance
+Undo
+Unknown color space, please use a color space in ColorSpaces
+Unknown error
+Unknown key status
+Unknown type
+UnknownHostException (no network)
+Unlimited
+Unlimited AI
+Unlock
+Unlock 10 additional premium art styles
+Unlock 5 more image generations
+Unlock Advanced Features
+Unlock Advanced Mode
+Unlock FireBloom API
+Unlock Image Upload
+Unlock Models
+Unlock Shot Types, Lighting, Camera Angles, and Color Palettes permanently! (No more 24-hour limit)
+Unlocked
+Unprocessed FocusEvent nodes
+Unprocessed FocusProperties nodes
+Unprocessed FocusTarget nodes
+Unspecified
+Update Available
+Update Downloaded
+Update Now
+Update Ready
+Update to get the latest features and improvements.
+Upload
+Upload an image and describe how you want it to animate. Video generation takes 2-5 minutes.
+Upload Image
+Upload images for AI to use as reference (up to 5, max 24MB each)
+Upload Your Image
+Upscale
+Upscaling History
+Use points to unlock premium features permanently
+Use Prompt
+Use This Prompt?
+Use your AI creations
+User
+Value not set.
+Van Gogh
+Versatile for all styles
+Version
+Vibrant and Saturated
+Video generated successfully!
+View our privacy policy
+View terms and conditions
+View upscaling history
+Wait
+Waiting in queue...
+Warm Sunset Glow
+Warm Tones
+Watch & Earn Instantly!
+Watch a short ad to continue using the FireBloom AI models for high-quality image generation.
+Watch a short video ad to unlock ALL premium features for 24 hours!
+Watch a short video ad to unlock ALL premium features:
+Watch a short video ad to unlock this premium AI model permanently!
+Watch a short video to earn points. Use points to unlock premium features like AI Model Selector and Advanced Options!
+Watch Ad
+Watch Ad (+3)
+Watch Ad for +3
+Watch Ad to Earn Points
+Watch Ad to Generate
+Watch Ad to Unlock
+Watch an ad to unlock for 24 hours
+Watch Short Video
+Watercolor
+WEEKLY
+Welcome
+Welcome to Unlimited AI
+What would you like to do with this image?
+What you get
+Where would you like to edit this image?
+Wide Shot
+Words
+Would you like to use this prompt to generate new images?
+Xyz
+You can still generate images without this feature.
+You received +10 points
+Your Benefits
+Your generated videos will appear here
+Your report has been sent for review. Thank you for helping keep our community safe!
+Your Subscription
+Your video is ready!

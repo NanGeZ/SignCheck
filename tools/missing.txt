@@ -1,0 +1,732 @@
+Enhancement Tools
+Professional image enhancement
+Professional AI Image Upscaler
+Restore old photos and enhance image quality
+Open in browser
+Saved Image
+Shared
+Delete Image
+Delete All
+Refresh
+Reset All
+Errors
+Yes
+No
+Skip
+Continue
+Confirm
+Select Option
+Select Tool
+Select Source
+View Details
+View All
+ View All
+Loading
+Retry Generation
+Share Text
+Processing
+Waiting
+Continue...
+Close dialog
+Close menu
+Close selection
+Clear All
+Copy Prompt
+Copy prompt
+Copy Text
+Copy
+Copied
+Paste
+Remove Image
+Add Image
+History & Favorites
+Premium Features
+Settings
+About
+Help
+Feedback
+Log In
+Logout
+Close app
+Share App
+Sign up
+Sign In
+Sign Up
+Forgot Password?
+Create Account
+Enter Email
+Enter Password
+Login with Email
+Login Screen
+Logout confirmed
+Hi, 
+Hi, %s
+Your account
+Watch Video
+Ad Watched
+Ad Watched!
+Watch a short ad to earn 5 bonus points!
+Watch Ad to generate more!
+Watch Ad to generate images!
+Watch Ad to unlock!
+Watch Ad to generate 3 more images
+Watch Ad to generate 5 more images
+Watch Ad to generate 4 more images
+Watch Ad to generate 2 more images
+Watch Ad to generate 1 more image
+Watch Video to earn points
+No Ad Available
+No Ad Available.
+Ad is still loading, please try again in a few seconds
+Premium users don't need to watch ads!
+Upgrade for an ad-free experience
+Get Premium
+You're Premium! No ads needed.
+Watch video ad to generate your image!
+point
+Bonus points!
+No bonus points earned
+ points to unlock
+Need %d more points!
+Free users get 3 free images per day
+Upgrade Now
+Upgrading...
+Premium Upgrade
+Premium Activated!
+You've unlocked all premium features!
+Your premium access has expired.
+Get Premium Unlimited
+Start 3-Day Free Trial
+Activate Now
+Unlimited Access
+Advanced Features
+Faster Generation
+Priority Queue
+Cloud Backup
+Cancel anytime
+Restore Purchase
+No ads, unlimited generation, and exclusive features!
+No ads!
+Your images will appear here
+No generated images yet
+No generated images yet!
+Your creations will show up here
+Your favorites will show up here
+Go Generate
+No videos yet!
+No images generated yet.
+No images yet!
+No image selected
+No Image
+Your favorite creations will appear here
+Upload Your Photo
+Upload Images
+Upload an image
+Upload an Image
+Take Photo
+Uploaded
+Upload Photos
+Drop your image here
+Add reference image
+Required
+Required field
+Description
+Description (optional)
+Enter description
+Prompt (optional)
+Prompt Preview
+Type your prompt
+Describe your video
+Describe the motion you want to see
+A beautiful landscape with mountains and a lake at sunset. The sky is filled with colorful clouds, and the mountains are reflected in the calm water.
+Example image
+Examples
+Sample prompts
+Example prompt
+Example
+Apply Options
+Advanced Models Pack
+Edit Mode
+Prompt Editing
+Manual Prompt
+Quick Select
+Select Model
+Select AI Model
+AI result 
+AI Generated 
+Choose a style
+Choose style
+Choose Style
+Select Style
+Styles
+ style 
+Ratio
+Resolution
+Image Size
+Batch Size
+Generate 4 images
+Generate 1 image
+Generate %d Images
+Generate %d Image
+Generate Image
+Generate
+Generating
+Generation
+Generation History 
+Success!
+Image generated successfully!
+Images generated successfully!
+Images generated successfully! 
+Failed to generate
+Generate more images
+You can generate %d more images
+You can generate %d more images today
+Daily Generations
+Daily Limit Reached
+Daily Generation Limit
+No generations left today
+No generations left
+images left
+image left
+Images
+Available Images
+Available Models
+images available
+Image deleted from gallery
+Images deleted from gallery
+Position %d of %d in queue
+Estimated Time: 
+Estimated time: 
+Time remaining
+Estimated time
+Speed
+Fast mode enabled
+Turbo Mode Unlocked!
+Advanced Mode
+Premium Model Selected!
+You've unlocked a Premium model!
+Premium Model
+Model Upgraded
+Switched to %s
+7 Premium AI Models
+AI Models
+Model Info
+Style Pack
+styles
+Unlock More Styles
+Unlock All Styles
+Style Unlocked
+New styles unlocked!
+Unlock %s
+Unlock Advanced
+Unlock Premium Models
+Unlock all Premium models
+Unlock all Styles
+Unlock All Models
+Unlock all Premium features
+Unlock Advanced Options
+Unlock All Features
+Unlock more with Premium
+Premium Model Unlocked!
+No Models
+Try Another Prompt
+Try again
+Try again later
+Try a different prompt
+Try different styles
+Check your internet connection
+Connection Error
+Connection error
+Something went wrong!
+An error occurred
+An error occurred.
+Please try again
+Please try again later
+No internet connection
+Please check your internet connection
+Please connect to the internet
+You're offline
+Waiting for connection
+Content Moderation
+AI Result Blocked
+Content Blocked
+Flagged
+Flagged Words
+Remove flagged words
+Remove flagged words from prompt
+Remove flagged words from prompt 
+inappropriate word(s) from your prompt
+Your prompt contains %d inappropriate word(s)
+Auto corrected
+Auto-Correct
+Auto-Correct Applied
+Auto-Correct Failed
+Auto-correct message cleared
+Errors cleared
+No errors
+Failed to generate image
+Failed to generate video
+Failed to generate images
+Failed to load styles
+Failed to load models
+Failed to share
+Image deleted
+Images deleted
+Deleted
+Delete this image?
+Delete all images?
+Delete All Images
+Are you sure you want to delete this image?
+ videos from your history?
+This action cannot be undone.
+Cannot be undone
+Delete Confirmation
+Delete History
+Clear History
+Clear History?
+Clear all history?
+History cleared
+Clear Favorites
+Clear All Images
+Clear all generations
+Saved to gallery
+Save to Gallery
+Save Image
+Save Images
+Save to Photos
+Save All Images
+Images saved to gallery
+Save successful
+Image saved
+Images saved
+Download
+Downloading
+Download Image
+Downloading image...
+Download completed
+Share this image
+Share your creation
+Share your images
+Share to
+Error sharing image: 
+Error sharing images: 
+Shared with friends
+Share your AI creations
+Share on
+Share your prompt
+Share this prompt
+Copy link
+Report this content
+Content Reported
+Thanks for your report
+Report Submitted
+Feedback Sent
+Report Issue
+Send Feedback
+Contact Us
+Help & Support
+FAQ
+Tutorial
+How it works
+Learn more
+Coming soon
+Updated
+A new version of this app is now available!
+Rate App
+Rate this app
+Rate Us
+Enjoying the app?
+Enjoying Unlimited AI?
+Love this app?
+Thank you!
+Thanks!
+Your feedback matters
+Enjoying the app? Please rate us!
+Enjoying Unlimited AI? Please rate us 5 stars!
+Share with friends
+Tell a friend
+Invite friends
+Spread the word
+Upscale Image
+Upscale Images
+Upscaling
+AI Upscaling
+Upscale to 4x
+4x Upscale
+2x Upscale
+Unblur Image
+AI Unblur
+AI Denoise
+Remove Noise
+Colorize
+Colorize Image
+AI Colorize
+Colorize Old Photos
+Enhance Image
+AI Enhance
+Retouch
+Retouch Image
+AI Retouch
+Portrait Retouch
+Extend
+Extend Image
+AI Extend
+Outpaint
+Sharpen
+AI Sharpen
+Remove background
+Background Removal
+Blur Background
+Restore
+Restore Image
+AI Restore
+Old Photo Restoration
+Rotate
+Rotate Left
+Rotate Right
+Flip
+Flip Horizontal
+Flip Vertical
+Highlights
+Shadows
+Exposure
+Temperature
+Vibrance
+Grain
+Adjust
+Adjustments
+Filters
+Filter
+Effects
+Effect
+Sticker
+Stickers
+Text Overlay
+Watermark
+Add Text
+Add Watermark
+Brush
+Draw
+Compare
+Compare before/after
+Before
+After
+Original vs Enhanced
+Auto Adjust
+Auto enhance
+Auto Fix
+One-tap Enhance
+Reset Changes
+Discard Changes
+Save Edited Image
+Image edited successfully
+Edit Image
+Editing
+Choose Editing Tool
+Choose an editing tool
+Professional editing tools
+Creative Tools
+Image Tools
+Tool
+Tools
+Video Filters
+Video Aspect Ratio
+Video History
+My Videos
+Video Settings
+Motion
+Motion Intensity
+Duration
+Duration: 
+Processing video...
+Video processing
+Create Video
+My Creations
+Create
+Create New
+New Creation
+Start Creating
+Create your first image
+Create stunning images
+Create with AI
+Bring your ideas to life
+AI creation
+Art Style
+art styles
+Choose an art style
+Choose Your AI Model
+Choose Your AI Image Generator
+Choose Your AI Image Editor
+Choose Your AI Image Enhancer
+Choose Your AI Video Generator
+Choose Your AI Image Upscaler
+Choose Your AI Background Remover
+Choose Your AI Photo Enhancer
+Choose Your AI Image Colorizer
+Choose Your AI Image Unblurrer
+Choose Your AI Image Denoiser
+Choose Your AI Image Restorer
+Choose Your AI Image Extender
+Choose Your AI Image Retoucher
+Choose Your AI Image Sharpener
+Continue with Google
+Continue with Email
+Create a free account
+Create your account
+Sign in to continue
+Signing in...
+Creating account...
+Login Successful
+Welcome back!
+Account created
+Account created successfully
+Logout Successful
+Invalid email
+Invalid email address
+Please enter a valid email
+Passwords do not match
+Email already registered
+Invalid credentials
+Login failed
+Signup failed
+Please fill in all fields
+Please enter email and password
+Loading account info...
+Checking login status...
+Welcome to
+Support Us ☕
+Support us
+Rate us 5 stars on the Play Store
+Send us feedback and suggestions
+Share the app with friends and family
+Support the developer
+Support Developer
+Buy me a coffee
+Get Started
+Get started
+Skip Intro
+Finish
+Onboarding
+Welcome to Unlimited AI!
+Let's get started
+Unlock the power of AI
+Everything you need to create stunning images
+Step 1 of 3
+Step 2 of 3
+Step 3 of 3
+Are you sure?
+Confirm Action
+Notice
+Notice: 
+Tip
+New!
+Hot!
+Exclusive
+Free
+Trial
+Free Trial
+Best Value
+Most Popular
+Save %d%%
+per year
+one-time
+Today
+Yesterday
+This week
+This month
+All Time
+Recent
+Newest
+Oldest
+Name
+Time
+Title
+Details
+More
+More Options
+Menu
+Home
+Explore
+Discover
+Gallery
+My Gallery
+My Images
+Favorites
+Add to Favorites
+Remove from Favorites
+Added to favorites
+Removed from favorites
+Search...
+Search for
+No results found
+No results found.
+Sort
+Sort by
+Grid View
+List View
+Items Selected
+Images Selected
+Choose
+Choose one
+Rename
+Rename Image
+Move
+Organize
+Batch
+Batch Actions
+Select Multiple
+Confirm Delete
+Keyboard Shortcut
+Voice Input
+Microphone
+Camera
+Photos
+Choose Photo
+Take a photo
+From Camera
+From Gallery
+From Photos
+Recent Photos
+All Photos
+Photo
+Photos 
+Photo Editor
+Image Editor
+Image Generator
+Image Enhancer
+Image Upscaler
+Image Colorizer
+Image Restorer
+Image Denoiser
+Image Unblurrer
+Background Remover
+Video Generator
+Video Editor
+Video Maker
+Photo Enhancer
+Photo Retoucher
+Permission denied
+Permission required
+Storage permission required
+Camera permission required
+Please grant permission
+Open Settings
+Grant Access
+Not enough storage space
+Storage full
+File too large
+File not found
+Invalid file
+Unsupported format
+Unsupported file format
+Image is too large
+Image size exceeds 10MB
+Please select an image
+Please describe your image
+Please wait
+Please wait...
+Loading styles...
+Loading models...
+Loading images...
+Uploading...
+Downloading...
+Initializing...
+Connecting...
+Waiting...
+Checking...
+Saving... 
+Processing... 
+Time out
+Network error
+Server error
+Server Error
+Request timed out
+Service unavailable
+Try Again
+Try Again Later
+Go Back
+Go Home
+Reload
+Refresh failed
+No content
+Unlock Everything
+Unlock All
+Unlock Premium
+Upgrade to Premium
+Go Unlimited
+Unlock now
+Unlock for %d points
+Unlock for %d points?
+Unlock with %d points
+Unlock with points
+Premium users get this for free
+Only Premium users can use this feature
+This is a Premium feature
+Premium Only
+Upgrade to access
+Upgrade to unlock
+Start Free Trial
+Free trial
+Trial expired
+Your trial has ended
+Subscription active
+Subscription expired
+Renew Subscription
+Cancel Subscription
+Purchase Successful
+Purchase failed
+Purchase Restored
+Restoring purchases...
+No purchases found
+Payment
+Payment Methods
+Google Play Billing
+Price
+Free version
+Free Version
+Premium Version
+Current Plan
+Monthly
+Yearly
+Lifetime
+Pablo Picasso
+Pierre-Auguste Renoir
+Rembrandt
+Da Vinci
+Vermeer
+Klimt
+Munch
+Photorealistic 
+Monochromatic
+Surrealism
+Cubism
+Pop Art
+Impressionism
+Art Nouveau
+Vaporwave
+Synthwave
+Pixel Art
+Pencil Sketch
+Charcoal Drawing
+Realistic
+Studio Ghibli
+Manga
+Chibi
+Cosplay
+Architecture
+Product Photo
+Food Photography
+Nature
+Macro
+Long Exposure
+Black and White
+Original Ratio
+Custom
+Manual
+Default 
+Donate
+Donation
+Support the App
+Support this app
+Help us improve
+We appreciate your support

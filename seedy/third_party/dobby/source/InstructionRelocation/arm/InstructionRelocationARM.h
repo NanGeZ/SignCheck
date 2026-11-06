@@ -18,24 +18,22 @@ public:
 
   // fix the instruction which not link to the label yet.
   void link_confused_instructions(CodeBuffer *buffer) {
-    CodeBuffer *_buffer;
-    if (buffer)
-      _buffer = buffer;
+    CodeBuffer *_buffer = buffer;
 
     for (auto &ref_label_insn : ref_insts) {
       // instruction offset to label
-      thumb2_inst_t insn = _buffer->LoadThumb2Inst(ref_label_insn.pc_offset);
-      thumb1_inst_t insn1 = _buffer->LoadThumb1Inst(ref_label_insn.pc_offset);
-      thumb1_inst_t insn2 = _buffer->LoadThumb1Inst(ref_label_insn.pc_offset + sizeof(thumb1_inst_t));
+      thumb2_inst_t insn = _buffer->LoadThumb2Inst(ref_label_insn.inst_offset);
+      thumb1_inst_t insn1 = _buffer->LoadThumb1Inst(ref_label_insn.inst_offset);
+      thumb1_inst_t insn2 = _buffer->LoadThumb1Inst(ref_label_insn.inst_offset + sizeof(thumb1_inst_t));
 
       switch (ref_label_insn.link_type) {
       case kThumb1Ldr: {
         UNREACHABLE();
       } break;
       case kThumb2LiteralLdr: {
-        int64_t pc = ref_label_insn.pc_offset + Thumb_PC_OFFSET;
+        int64_t pc = ref_label_insn.inst_offset + Thumb_PC_OFFSET;
         assert(pc % 4 == 0);
-        int32_t imm12 = pos() - pc;
+        int32_t imm12 = pos - pc;
 
         if (imm12 > 0) {
           set_bit(insn1, 7, 1);
@@ -44,10 +42,10 @@ public:
           imm12 = -imm12;
         }
         set_bits(insn2, 0, 11, imm12);
-        _buffer->RewriteThumb1Inst(ref_label_insn.pc_offset, insn1);
-        _buffer->RewriteThumb1Inst(ref_label_insn.pc_offset + Thumb1_INST_LEN, insn2);
+        _buffer->RewriteThumb1Inst(ref_label_insn.inst_offset, insn1);
+        _buffer->RewriteThumb1Inst(ref_label_insn.inst_offset + Thumb1_INST_LEN, insn2);
 
-        DEBUG_LOG("[thumb label link] insn offset %d link offset %d", ref_label_insn.pc_offset, imm12);
+        DEBUG_LOG("[thumb label link] insn offset %d link offset %d", (int)ref_label_insn.inst_offset, imm12);
       } break;
       default:
         UNREACHABLE();
@@ -245,8 +243,8 @@ public:
   }
 
   void T2_Ldr(Register rt, ThumbPseudoLabel *label) {
-    if (label->pos()) {
-      int offset = label->pos() - buffer_->buffer_size();
+    if (label->pos) {
+      int offset = label->pos - buffer_->buffer_size();
       t2_ldr(rt, MemOperand(pc, offset));
     } else {
       // record this ldr, and fix later.

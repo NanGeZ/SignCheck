@@ -1,6 +1,8 @@
 #pragma once
 
-#include "dobby/common.h"
+#include <stdarg.h>
+#include <stddef.h>
+#include <stdint.h>
 
 namespace base {
 
@@ -89,3 +91,7 @@ public:
 
   static void VPrint(const char *format, va_list args);
 };
+
+// common.h 经 common/os_arch_features.h 回引本头；置于声明之后，
+// 避免循环包含时 OSMemory 尚未声明。
+#include "dobby/common.h"

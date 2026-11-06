@@ -2,6 +2,10 @@
 
 #include "dobby/common.h"
 #include "MemoryAllocator.h"
+
+#if defined(TARGET_ARCH_ARM)
+#include "core/arch/arm/constants-arm.h"
+#endif
 struct MemBuffer {
   uint8_t *buffer;
   uint32_t buffer_size;
@@ -75,6 +79,12 @@ struct MemBuffer {
 };
 
 struct CodeMemBuffer : MemBuffer {
+  CodeMemBuffer *Copy() {
+    auto dup_buffer = new CodeMemBuffer();
+    dup_buffer->emit(data(), size());
+    return dup_buffer;
+  }
+
   template <typename T> T Load(int offset) {
     return read<T>(offset);
   }

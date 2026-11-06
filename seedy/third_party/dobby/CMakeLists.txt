@@ -164,6 +164,15 @@ set(dobby.SOURCE_FILE_LIST ${dobby.SOURCE_FILE_LIST}
   source/dobby.cpp
   )
 
+# 强制 .asm 走 C 预处理器（clang 默认按纯汇编处理，#if 宏守卫不会生效）
+set_source_files_properties(
+  source/TrampolineBridge/ClosureTrampolineBridge/arm64/closure_bridge_arm64.asm
+  source/TrampolineBridge/ClosureTrampolineBridge/arm64/closure_trampoline_arm64.asm
+  source/TrampolineBridge/ClosureTrampolineBridge/x64/closure_bridge_x64.asm
+  source/TrampolineBridge/ClosureTrampolineBridge/x64/closure_trampoline_x64.asm
+  PROPERTIES COMPILE_OPTIONS "-x;assembler-with-cpp"
+)
+
 
 if (SYSTEM.Darwin AND NOT DOBBY_BUILD_KERNEL_MODE)
   set(dobby.SOURCE_FILE_LIST ${dobby.SOURCE_FILE_LIST}

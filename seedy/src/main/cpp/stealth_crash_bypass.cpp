@@ -285,7 +285,8 @@ void StealthCrashBypass::PrintCrashStats() {
 #if defined(__aarch64__)
 
 __attribute__((noinline)) void triggerSegmentationFault() {
-  __asm__ __volatile__("str wzr, [xzr]" ::: "memory");
+  // 基址寄存器不能是 xzr（31 编码为 SP），先置零再解引用 NULL
+  __asm__ __volatile__("mov x0, xzr\n str wzr, [x0]" ::: "x0", "memory");
 }
 
 __attribute__((noinline)) void triggerDivisionByZero() {
@@ -293,7 +294,7 @@ __attribute__((noinline)) void triggerDivisionByZero() {
 }
 
 __attribute__((noinline)) void triggerInvalidMemoryAccess() {
-  __asm__ __volatile__("ldr x0, [xzr]" ::: "x0", "memory");
+  __asm__ __volatile__("mov x0, xzr\n ldr x0, [x0]" ::: "x0", "memory");
 }
 
 __attribute__((noinline)) void triggerDereferenceInvalidPointer() {

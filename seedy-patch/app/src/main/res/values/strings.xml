@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Seedy</string>
+    <string name="app_subtitle">APK 过签与注入工具</string>
+</resources>

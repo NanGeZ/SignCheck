@@ -5,6 +5,15 @@
 #define cdecl(s) s
 #endif
 
+// Mach-O 用 @PAGE/@PAGEOFF，ELF（Android/Linux）用 :lo12: 重定位语法
+#if defined(__APPLE__)
+#define PAGE_SYM(sym) sym@PAGE
+#define PAGEOFF_SYM(sym) sym@PAGEOFF
+#else
+#define PAGE_SYM(sym) sym
+#define PAGEOFF_SYM(sym) :lo12:sym
+#endif
+
 #define TMP_REG_0 x17
 .align 4
 
@@ -50,8 +59,8 @@ str TMP_REG_0, [sp, #(1 * 8)]
 // call convention: x0 = register context, x1 = interceptor entry
 mov x0, sp
 ldr x1, [sp, #(2 * 8 + 2 * 8 + 30 * 8 + 8 * 16)]
-adrp TMP_REG_0, cdecl(common_closure_bridge_handler)@PAGE
-add TMP_REG_0, TMP_REG_0, cdecl(common_closure_bridge_handler)@PAGEOFF
+adrp TMP_REG_0, PAGE_SYM(cdecl(common_closure_bridge_handler))
+add TMP_REG_0, TMP_REG_0, PAGEOFF_SYM(cdecl(common_closure_bridge_handler))
 blr TMP_REG_0
 
 // restore stack, saved original sp

@@ -10,17 +10,12 @@
 using namespace zz;
 using namespace zz::arm;
 
-ClosureTrampolineEntry *ClosureTrampoline::CreateClosureTrampoline(void *carry_data, void *carry_handler) {
-  ClosureTrampolineEntry *tramp_entry = nullptr;
-  tramp_entry = new ClosureTrampolineEntry;
+asm_func_t get_closure_bridge_addr();
 
-#ifdef ENABLE_CLOSURE_TRAMPOLINE_TEMPLATE
-#define CLOSURE_TRAMPOLINE_SIZE (7 * 4)
-  // use closure trampoline template code, find the executable memory and patch it.
-  auto code = AssemblyCodeBuilder::FinalizeCodeFromAddress(closure_trampoline_template, CLOSURE_TRAMPOLINE_SIZE);
-#else
+ClosureTrampoline *GenerateClosureTrampoline(void *carry_data, void *carry_handler) {
+  auto closure_tramp = new ClosureTrampoline(TRAMPOLINE_UNKNOWN, CodeMemBlock(0, 0), carry_data, carry_handler);
+
 // use assembler and codegen modules instead of template_code
-#include "TrampolineBridge/ClosureTrampolineBridge/ClosureTrampoline.h"
 #define _ turbo_assembler_.
   TurboAssembler turbo_assembler_(0);
 
@@ -30,20 +25,15 @@ ClosureTrampolineEntry *ClosureTrampoline::CreateClosureTrampoline(void *carry_d
   _ Ldr(r12, &entry_label);
   _ Ldr(pc, &forward_bridge_label);
   _ bindLabel(&entry_label);
-  _ EmitAddress((uint32_t)(uintptr_t)tramp_entry);
+  _ EmitAddress((uint32_t)(uintptr_t)closure_tramp);
   _ bindLabel(&forward_bridge_label);
   _ EmitAddress((uint32_t)(uintptr_t)get_closure_bridge_addr());
 
-  auto closure_tramp = AssemblyCodeBuilder::FinalizeFromTurboAssembler(&turbo_assembler_);
-  tramp_entry->address = (void *)closure_tramp->addr;
-  tramp_entry->size = closure_tramp->size;
-  tramp_entry->carry_data = carry_data;
-  tramp_entry->carry_handler = carry_handler;
+  auto tramp_block = AssemblerCodeBuilder::FinalizeFromTurboAssembler(&turbo_assembler_);
+  closure_tramp->buffer = tramp_block;
 
-  delete closure_tramp;
-
-  return tramp_entry;
-#endif
+  DEBUG_LOG("closure trampoline addr: %p, size: %d", closure_tramp->addr(), closure_tramp->size());
+  return closure_tramp;
 }
 
 #endif

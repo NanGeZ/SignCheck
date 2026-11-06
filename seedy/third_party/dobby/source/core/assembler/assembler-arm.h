@@ -181,24 +181,57 @@ public:
 enum ExecuteState { ARMExecuteState, ThumbExecuteState };
 
 class Assembler : public AssemblerBase {
+protected:
+  // 旧 API：输出缓冲指针。无外部缓冲时指向基类 code_buffer_ 值成员
+  //（CodeBuffer 仅补方法不增字段，布局一致，可安全互转）
+  CodeBuffer *buffer_;
+
 private:
   ExecuteState execute_state_;
 
 public:
-  Assembler(void *address) : AssemblerBase(address) {
+  Assembler(void *address) : AssemblerBase((addr_t)(uintptr_t)address) {
     execute_state_ = ARMExecuteState;
-    buffer_ = new CodeBuffer();
+    buffer_ = reinterpret_cast<CodeBuffer *>(&code_buffer_);
   }
 
   // shared_ptr is better choice
   // but we can't use it at kernelspace
-  Assembler(void *address, CodeBuffer *buffer) : AssemblerBase(address) {
+  Assembler(void *address, CodeBuffer *buffer) : AssemblerBase((addr_t)(uintptr_t)address) {
     execute_state_ = ARMExecuteState;
     buffer_ = buffer;
   }
 
   void ClearCodeBuffer() {
     buffer_ = NULL;
+  }
+
+public:
+  // 旧 API 适配：缓冲访问统一走 buffer_，保证外部缓冲与基类视图一致
+  CodeBuffer *code_buffer() {
+    return buffer_;
+  }
+
+  size_t pc_offset() {
+    return buffer_->buffer_size();
+  }
+
+  void AppendRelocLabel(RelocDataLabel *label) {
+    data_labels.push_back(label);
+  }
+
+  void bindLabel(PseudoLabel *label) {
+    label->bind_to(pc_offset());
+    if (label->has_confused_instructions()) {
+      label->link_confused_instructions(buffer_);
+    }
+  }
+
+  void relocDataLabels() {
+    for (auto *data_label : data_labels) {
+      bindLabel(data_label);
+      buffer_->EmitBuffer(data_label->data_, data_label->data_size_);
+    }
   }
 
 public:
@@ -211,7 +244,11 @@ public:
 
   void SetRealizedAddress(void *address) {
     DCHECK_EQ(0, reinterpret_cast<uint64_t>(address) % 4);
-    AssemblerBase::SetRealizedAddress(address);
+    set_fixed_addr((addr_t)(uintptr_t)address);
+  }
+
+  void *GetRealizedAddress() {
+    return (void *)(uintptr_t)fixed_addr;
   }
 
   void EmitARMInst(arm_inst_t instr);
@@ -318,8 +355,8 @@ public:
   }
 
   void Ldr(Register rt, PseudoLabel *label) {
-    if (label->pos()) {
-      int offset = label->pos() - buffer_->buffer_size();
+    if (label->pos) {
+      int offset = label->pos - buffer_->buffer_size();
       ldr(rt, MemOperand(pc, offset));
     } else {
       // record this ldr, and fix later.
@@ -333,14 +370,14 @@ public:
     bl(0);
     b(4);
     ldr(pc, MemOperand(pc, -4));
-    buffer_->Emit<int32_t>((uint32_t)(uintptr_t)function.address());
+    buffer_->Emit<int32_t>((uint32_t)(uintptr_t)function.address);
   }
 
   void Move32Immeidate(Register rd, const Operand &x, Condition cond = AL) {
   }
 
   void RelocLabelFixup(stl::unordered_map<off_t, off_t> *relocated_offset_map) {
-    for (auto *data_label : data_labels_) {
+    for (auto *data_label : data_labels) {
       auto val = data_label->data<int32_t>();
       auto iter = relocated_offset_map->find(val);
       if (iter != relocated_offset_map->end()) {

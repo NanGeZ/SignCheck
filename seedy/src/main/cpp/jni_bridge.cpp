@@ -7,7 +7,7 @@
 // 类名：eternal/future/seedy/{Core,MapsGhost,IORedirects}。
 //
 // 未实证项（保留但注明）：
-//  - IORedirects.init(III) 三个 int 参数语义无逆向证据，此处忽略，
+//  - IORedirects.init(ZZZ) 三个 boolean 参数语义无逆向证据，此处忽略，
 //    仅执行框架初始化（与原符号 IORedirects::init() 对应）。
 //  - 原符号表存在 Core_getContext，但 dex 中无对应 native 声明，
 //    无法确定签名与语义，故不实现（见交付说明）。
@@ -62,8 +62,8 @@ void MapsGhost_AddEntry(JNIEnv* env, jclass, jstring pattern) {
 
 // ---- IORedirects natives ----
 
-void IORedirects_Init(JNIEnv*, jclass, jint, jint, jint) {
-  // (III)V 参数语义未实证，显式忽略（见文件头注释）。
+void IORedirects_Init(JNIEnv*, jclass, jboolean, jboolean, jboolean) {
+  // (ZZZ)V 参数语义未实证，显式忽略（见文件头注释）。
   if (!Seedy::IORedirects::init()) {
     SEEDY_LOG(SEEDY_LOG_ERROR, "Seedy", "IORedirects init failed");
   }
@@ -100,7 +100,7 @@ const JNINativeMethod kMapsGhostMethods[] = {
 };
 
 const JNINativeMethod kIORedirectsMethods[] = {
-    {SEEDY_JNI_NAME("init"), SEEDY_JNI_NAME("(III)V"),
+    {SEEDY_JNI_NAME("init"), SEEDY_JNI_NAME("(ZZZ)V"),
      reinterpret_cast<void*>(IORedirects_Init)},
     {SEEDY_JNI_NAME("add_entry"),
      SEEDY_JNI_NAME("(Ljava/lang/String;Ljava/lang/String;)V"),

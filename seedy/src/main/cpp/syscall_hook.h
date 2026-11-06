@@ -15,6 +15,9 @@ class SyscallHook {
  public:
   // 处理器签名:收到系统调用号与变参视图,自行消费参数并决定是否直调原始
   // syscall(经 call_original)。返回值即系统调用返回值。
+  // ABI 已实证(原 so syscall_handler 0x959d0):va_list 为 AAPCS64
+  // std::__va_list 按值传递;handler 返回值直接作为 syscall 结果返回,
+  // 无二次回退;未注册时提取 6 个变参透传原 syscall()。
   typedef long (*SyscallHandler)(long nr, va_list args);
 
   static bool init();

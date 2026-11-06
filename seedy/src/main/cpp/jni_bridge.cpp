@@ -6,11 +6,15 @@
 //
 // 类名：eternal/future/seedy/{Core,MapsGhost,IORedirects}。
 //
-// 未实证项（保留但注明）：
-//  - 原符号表存在 Core_getContext，但 dex 中无对应 native 声明，
-//    无法确定签名与语义，故不实现（见交付说明）。
-// IORedirects.init(ZZZ) 三开关语义已实证（原 so thunk 0x88494：
-// z1→open、z2→openat、z3→__openat 的安装门控），见 ioredirects.h。
+// 原"未实证项"均已实证：
+//  - Core_getContext（thunk 0x88140）：ActivityThread.currentActivityThread()
+//    .getApplication()，返回 Application jobject；dex 无声明但 so 导出，
+//    已补 Java 声明并注册（签名 ()Landroid/app/Application;）。
+//  - IORedirects.init(ZZZ) 三开关（thunk 0x88494）：z1→open、z2→openat、
+//    z3→__openat 的安装门控），见 ioredirects.h。
+//  - SyscallHook 变参透传（syscall_handler 0x959d0）：handler 签名
+//    long(*)(long nr, va_list)（va_list 按值传递），handler 返回值即 syscall
+//    结果；未注册时从 va_list 提取 6 参透传原 syscall()。见 syscall_hook.h。
 
 #include <jni.h>
 
@@ -46,6 +50,21 @@ void Core_ScbInstall(JNIEnv*, jclass) {
 void Core_ScbRegisterAddressRange(JNIEnv*, jclass, jlong start, jlong size) {
   StealthCrashBypass::RegisterAddressRange(static_cast<uintptr_t>(start),
                                            static_cast<size_t>(size));
+}
+
+jobject Core_GetContext(JNIEnv* env, jclass) {
+  // 原 so thunk 0x88140 实证：ActivityThread.currentActivityThread().getApplication()
+  jclass cls = env->FindClass("android/app/ActivityThread");
+  if (cls == nullptr) return nullptr;
+  jmethodID mid_at = env->GetStaticMethodID(
+      cls, "currentActivityThread", "()Landroid/app/ActivityThread;");
+  if (mid_at == nullptr) return nullptr;
+  jobject at = env->CallStaticObjectMethod(cls, mid_at);
+  if (at == nullptr) return nullptr;
+  jmethodID mid_app =
+      env->GetMethodID(cls, "getApplication", "()Landroid/app/Application;");
+  if (mid_app == nullptr) return nullptr;
+  return env->CallObjectMethod(at, mid_app);
 }
 
 // ---- MapsGhost natives ----
@@ -92,6 +111,9 @@ const JNINativeMethod kCoreMethods[] = {
     {SEEDY_JNI_NAME("StealthCrashBypass_RegisterAddressRange"),
      SEEDY_JNI_NAME("(JJ)V"),
      reinterpret_cast<void*>(Core_ScbRegisterAddressRange)},
+    {SEEDY_JNI_NAME("getContext"),
+     SEEDY_JNI_NAME("()Landroid/app/Application;"),
+     reinterpret_cast<void*>(Core_GetContext)},
 };
 
 const JNINativeMethod kMapsGhostMethods[] = {

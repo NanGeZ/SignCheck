@@ -1,6 +1,7 @@
 package eternal.future.seedy;
 
 import android.annotation.SuppressLint;
+import android.app.Application;
 import android.content.Context;
 import android.util.Log;
 import java.io.File;
@@ -26,6 +27,10 @@ public class Core {
 
     // 显式注册一段可信探针代码区间（白名单），区间内故障信号会被静默跳过。
     public static native void StealthCrashBypass_RegisterAddressRange(long start, long size);
+
+    // 取当前 Application（原 so 导出 Core_getContext，dex 未声明；thunk 实证：
+    // ActivityThread.currentActivityThread().getApplication()）。
+    public static native Application getContext();
 
     static {
         initialize = false;

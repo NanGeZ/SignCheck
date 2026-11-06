@@ -7,10 +7,10 @@
 // 类名：eternal/future/seedy/{Core,MapsGhost,IORedirects}。
 //
 // 未实证项（保留但注明）：
-//  - IORedirects.init(ZZZ) 三个 boolean 参数语义无逆向证据，此处忽略，
-//    仅执行框架初始化（与原符号 IORedirects::init() 对应）。
 //  - 原符号表存在 Core_getContext，但 dex 中无对应 native 声明，
 //    无法确定签名与语义，故不实现（见交付说明）。
+// IORedirects.init(ZZZ) 三开关语义已实证（原 so thunk 0x88494：
+// z1→open、z2→openat、z3→__openat 的安装门控），见 ioredirects.h。
 
 #include <jni.h>
 
@@ -62,9 +62,11 @@ void MapsGhost_AddEntry(JNIEnv* env, jclass, jstring pattern) {
 
 // ---- IORedirects natives ----
 
-void IORedirects_Init(JNIEnv*, jclass, jboolean, jboolean, jboolean) {
-  // (ZZZ)V 参数语义未实证，显式忽略（见文件头注释）。
-  if (!Seedy::IORedirects::init()) {
+void IORedirects_Init(JNIEnv*, jclass, jboolean open_en, jboolean openat_en,
+                      jboolean openat_int_en) {
+  // 语义已实证（原 so thunk 0x88494）：三开关→open/openat/__openat 安装门控。
+  if (!Seedy::IORedirects::init(open_en == JNI_TRUE, openat_en == JNI_TRUE,
+                                openat_int_en == JNI_TRUE)) {
     SEEDY_LOG(SEEDY_LOG_ERROR, "Seedy", "IORedirects init failed");
   }
 }

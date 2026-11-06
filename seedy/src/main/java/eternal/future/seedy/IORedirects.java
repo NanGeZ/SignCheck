@@ -4,7 +4,8 @@ import android.content.Context;
 import java.util.Objects;
 
 // 文件 IO 重定向模块的 Java 侧。
-// init 三个 boolean 参数的语义无逆向证据，native 侧忽略（见 jni_bridge.cpp 注释）。
+// init 三开关语义已实证（原 so JNI thunk）：z→open、z2→openat、z3→__openat 的安装门控；
+// RedirectAPK 传 (false,false,true)，只 hook bionic 的 __openat 变体。
 public class IORedirects {
     public static String apkPath;
     public static String repPath;

@@ -32,9 +32,16 @@ class IORedirects {
                              OpenAtFn openat_fn, OpenAt2Fn openat_fn2)>
       ContentProcessor;
 
-  // 幂等初始化:安装 open/openat/__openat 与 syscall() 分发 hook。
-  // 任一必需 hook 安装失败则返回 false(不允许静默降级)。
+  // 初始化:装 syscall() 分发 hook,并按开关装 open/openat/__openat hook。
+  // 三个开关语义已实证(原 so JNI thunk 0x88494):z1→open、z2→openat、
+  // z3→__openat,归一化 0/1 后写入全局标志再调 init();bionic 的 openat
+  // 最终走 __openat,原版调用点传 (false,false,true),只 hook __openat 变体。
+  // 原实现无幂等早退(已实证):MapsGhost::init() 先以默认开关(全 false,
+  // 仅装 syscall 分发)调用一次,随后 Java init(z1,z2,z3) 再入完成安装;
+  // 已装 hook 以 *_org 判重,不重复安装。
+  // 返回:所有被启用的 hook 均可用(零启用视为成功);失败不允许静默降级。
   static bool init();
+  static bool init(bool enable_open, bool enable_openat, bool enable_openat_int);
 
   // 路径→替换路径:打开 path 实际打开 target。
   static bool add_open_redirects(const std::string& path,
@@ -75,6 +82,7 @@ class IORedirects {
   static std::map<std::string, std::string> redirectsDirectoryMap;
   static std::map<std::string, ContentProcessor> contentProcessors;
 
+  // 各打开函数 hook 的启用开关(由 init 入参决定;hook 运行期亦作防线)。
   static bool open_enable;
   static bool openat_enable;
   static bool openat_int_enable;

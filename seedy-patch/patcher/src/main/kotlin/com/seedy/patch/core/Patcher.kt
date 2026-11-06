@@ -17,7 +17,11 @@ data class PatchResult(
     val strippedSignatures: Int,
     val minSdk: Int,
     val dexStrategy: String,
-    val outputSize: Long
+    val outputSize: Long,
+    /** 数据复用虚拟条目数 */
+    val multiplexedEntries: Int = 0,
+    /** 数据复用省去的字节数（约） */
+    val savedBytes: Long = 0
 )
 
 /**
@@ -26,7 +30,9 @@ data class PatchResult(
  *  2. Dexlib2 注入桩 dex（追加 classesN.dex / 低 minSdk 合并进 classes.dex）
  *  3. 写入 assets/seedy/original.apk（原包）与 assets/seedy/so/<abi>/libseedy.so
  *  4. 剥离 v1 签名，原始条目零重压缩复制、zipalign 级对齐重打包
- *  5. 不签名（产物交给用户自行签名）
+ *  5. 数据复用（ApkDataMultiplexing 方案）：原包 STORED 内嵌，重复条目改虚拟条目，
+ *     中央目录偏移直指原包数据区，数据只存一份
+ *  6. 不签名（产物交给用户自行签名）
  */
 object Patcher {
 
@@ -77,9 +83,11 @@ object Patcher {
                 "merged:$primaryDexName"
             }
 
-            // ---- 3/4. 重打包 ----
+            // ---- 3/4/5. 重打包 + 数据复用 ----
             val tmp = File(output.parentFile, output.name + ".tmp")
             var entryCount = 0
+            val multiplex = ArrayList<RawZip.Entry>()
+            var savedBytes = 0L
             FileOutputStream(tmp).buffered().use { bos ->
                 val writer = AlignedZipWriter(bos)
                 for (e in raw.entries) {
@@ -94,10 +102,14 @@ object Patcher {
                             writer.addEntry(e.name, newManifest, e.method)
                         plan.mergedClassesDex != null && e.name == primaryDexName ->
                             writer.addEntry(e.name, plan.mergedClassesDex, e.method)
+                        canMultiplex(e, raw) -> {
+                            multiplex.add(e)
+                            savedBytes += e.compressedSize + 30 + e.name.length
+                        }
                         else ->
                             writer.addRawEntry(
                                 e.name.toByteArray(Charsets.UTF_8), e.method,
-                                e.crc, e.size, e.compressedSize
+                                e.crc, e.size, e.compressedSize, e.flags
                             ) { out -> raw.copyCompressed(e, out) }
                     }
                 }
@@ -105,9 +117,19 @@ object Patcher {
                     writer.addEntry(plan.extraDexName!!, it, AlignedZipWriter.DEFLATED)
                     entryCount++
                 }
-                // 原包封入 assets/seedy/original.apk（STORED，运行时零解压提取）
-                writer.addFileEntry("assets/seedy/original.apk", source, AlignedZipWriter.STORED)
+                // 原包封入 assets/seedy/original.apk（STORED、16384 对齐，兼作数据复用宿主）
+                val hostDataOffset = writer.addFileEntry(
+                    "assets/seedy/original.apk", source,
+                    AlignedZipWriter.STORED, AlignedZipWriter.SO_ALIGN
+                )
                 entryCount++
+                // 数据复用：虚拟条目本地头直指原包数据区内的原条目，数据零重复
+                for (e in multiplex) {
+                    writer.addVirtualEntry(
+                        e.name.toByteArray(Charsets.UTF_8), e.method, e.flags,
+                        e.crc, e.size, e.compressedSize, hostDataOffset + e.localOffset
+                    )
+                }
                 for ((abi, so) in payload.nativeLibs) {
                     writer.addEntry("assets/seedy/so/$abi/libseedy.so", so, AlignedZipWriter.STORED)
                     entryCount++
@@ -119,9 +141,13 @@ object Patcher {
                 tmp.delete()
             }
 
+            log("数据复用：${multiplex.size} 个条目共享原包数据，省去约 ${human(savedBytes)}")
             log("输出 ${output.name}（${human(output.length())}，未签名）")
             log("完成：$entryCount 个条目，剥离签名 $stripped 个，策略 $strategy")
-            return PatchResult(output, entryCount, stripped, minSdk, strategy, output.length())
+            return PatchResult(
+                output, entryCount, stripped, minSdk, strategy, output.length(),
+                multiplex.size, savedBytes
+            )
         } finally {
             raw.close()
         }
@@ -136,6 +162,22 @@ object Patcher {
     private fun dexIndex(name: String): Int {
         val m = Regex("""classes(\d*)\.dex""").matchEntire(name) ?: return 0
         return m.groupValues[1].ifEmpty { "1" }.toInt()
+    }
+
+    /**
+     * 数据复用可行性（ApkDataMultiplexing collectChildren 约束）：
+     * 外层条目即原包条目的逐字节副本，内容天然一致；仅需满足 STORED 对齐
+     * ——虚拟条目数据偏移 = 宿主偏移 + 原包内偏移，宿主 16384 对齐故对齐性保持。
+     */
+    private fun canMultiplex(e: RawZip.Entry, raw: RawZip): Boolean {
+        if (e.name.endsWith("/")) return false
+        if (e.method != AlignedZipWriter.STORED && e.method != AlignedZipWriter.DEFLATED) return false
+        if (e.method == AlignedZipWriter.STORED) {
+            val dataOff = raw.dataOffset(e)
+            if (e.name == "resources.arsc" && dataOff % 4L != 0L) return false
+            if (e.name.endsWith(".so") && dataOff % 4096L != 0L) return false
+        }
+        return true
     }
 
     fun human(bytes: Long): String = when {

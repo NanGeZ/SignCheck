@@ -35,6 +35,7 @@ class AlignedZipWriter(private val out: OutputStream) {
     private class CentralEntry(
         val name: ByteArray,
         val method: Int,
+        val flags: Int,
         val crc: Long,
         val compressedSize: Long,
         val size: Long,
@@ -48,7 +49,7 @@ class AlignedZipWriter(private val out: OutputStream) {
     fun addEntry(name: String, data: ByteArray, method: Int = DEFLATED) {
         val crc = CRC32().apply { update(data) }.value
         val payload = if (method == STORED) data else deflate(data)
-        writeEntry(name.toByteArray(Charsets.UTF_8), method, crc, data.size.toLong(), payload.size.toLong()) {
+        writeEntry(name.toByteArray(Charsets.UTF_8), method, 0, crc, data.size.toLong(), payload.size.toLong()) {
             out.write(payload)
         }
     }
@@ -63,13 +64,33 @@ class AlignedZipWriter(private val out: OutputStream) {
         crc: Long,
         size: Long,
         compressedSize: Long,
+        flags: Int = 0,
         copyTo: (OutputStream) -> Unit
     ) {
-        writeEntry(name, method, crc, size, compressedSize, copyTo)
+        writeEntry(name, method, flags, crc, size, compressedSize, writePayload = copyTo)
     }
 
-    /** 文件条目（STORED，流式两遍：先算 CRC 再落盘，避免整文件进堆） */
-    fun addFileEntry(name: String, file: java.io.File, method: Int = STORED) {
+    /**
+     * 数据复用虚拟条目：不写任何字节，仅登记中央目录记录，
+     * 其本地头偏移指向文件内已存在的数据（宿主条目数据区内的原条目本地头）。
+     * [localHeaderOffset] 为目标本地头在输出文件内的绝对偏移。
+     */
+    fun addVirtualEntry(
+        name: ByteArray,
+        method: Int,
+        flags: Int,
+        crc: Long,
+        size: Long,
+        compressedSize: Long,
+        localHeaderOffset: Long
+    ) {
+        check(central.size < 0xFFFF) { "条目数超出 ZIP 限制（不支持 ZIP64）" }
+        check(localHeaderOffset < 0xFFFFFFFFL) { "偏移超过 4GB（不支持 ZIP64）" }
+        central.add(CentralEntry(name, method, flags, crc, compressedSize, size, localHeaderOffset))
+    }
+
+    /** 文件条目（STORED，流式两遍：先算 CRC 再落盘，避免整文件进堆）；返回数据起始偏移 */
+    fun addFileEntry(name: String, file: java.io.File, method: Int = STORED, align: Int = 0): Long {
         val crc = CRC32()
         file.inputStream().use { ins ->
             val buf = ByteArray(256 * 1024)
@@ -79,7 +100,7 @@ class AlignedZipWriter(private val out: OutputStream) {
                 crc.update(buf, 0, n)
             }
         }
-        writeEntry(name.toByteArray(Charsets.UTF_8), method, crc.value, file.length(), file.length()) { o ->
+        return writeEntry(name.toByteArray(Charsets.UTF_8), method, 0, crc.value, file.length(), file.length(), align) { o ->
             file.inputStream().use { ins ->
                 val buf = ByteArray(256 * 1024)
                 while (true) {
@@ -94,16 +115,18 @@ class AlignedZipWriter(private val out: OutputStream) {
     private fun writeEntry(
         nameBytes: ByteArray,
         method: Int,
+        flags: Int,
         crc: Long,
         size: Long,
         compressedSize: Long,
+        alignOverride: Int = 0,
         writePayload: (OutputStream) -> Unit
-    ) {
+    ): Long {
         check(central.size < 0xFFFF) { "条目数超出 ZIP 限制（不支持 ZIP64）" }
         check(size < 0xFFFFFFFFL && compressedSize < 0xFFFFFFFFL) { "条目超过 4GB（不支持 ZIP64）" }
         val localOffset = pos
 
-        val align = if (method == STORED) {
+        val align = if (alignOverride > 0) alignOverride else if (method == STORED) {
             if (nameBytes.startsWith("lib/".toByteArray()) && nameBytes.endsWith(".so".toByteArray())) SO_ALIGN
             else DEFAULT_ALIGN
         } else 0
@@ -118,7 +141,7 @@ class AlignedZipWriter(private val out: OutputStream) {
         val head = ByteBuffer.allocate(30).order(ByteOrder.LITTLE_ENDIAN)
         head.putInt(0x04034b50)
         head.putShort(20)                      // version needed
-        head.putShort(0)                       // flags（无数据描述符）
+        head.putShort(flags.toShort())         // flags
         head.putShort(method.toShort())
         head.putShort(0)                       // mod time
         head.putShort(0x5A21)                  // mod date
@@ -136,10 +159,12 @@ class AlignedZipWriter(private val out: OutputStream) {
             while (extra.hasRemaining()) extra.put(0)
             out.write(extra.array())
         }
+        val dataOffset = pos + 30 + nameBytes.size + extraLen
         writePayload(out)
-        pos += 30 + nameBytes.size + extraLen + compressedSize
+        pos = dataOffset + compressedSize
 
-        central.add(CentralEntry(nameBytes, method, crc, compressedSize, size, localOffset))
+        central.add(CentralEntry(nameBytes, method, flags, crc, compressedSize, size, localOffset))
+        return dataOffset
     }
 
     fun finish() {
@@ -149,7 +174,7 @@ class AlignedZipWriter(private val out: OutputStream) {
             b.putInt(0x02014b50)
             b.putShort(20)                     // version made by
             b.putShort(20)                     // version needed
-            b.putShort(0)                      // flags
+            b.putShort(e.flags.toShort())      // flags
             b.putShort(e.method.toShort())
             b.putShort(0)                      // time
             b.putShort(0x5A21)                 // date

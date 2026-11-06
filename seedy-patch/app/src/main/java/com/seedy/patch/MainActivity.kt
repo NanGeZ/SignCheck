@@ -326,8 +326,14 @@ private fun SeedyScreen() {
                             Text("输出：${r.output.name}（${Patcher.human(r.outputSize)}）", style = MaterialTheme.typography.bodyMedium)
                             Text("条目 ${r.entryCount} 个 · 剥离签名 ${r.strippedSignatures} 个 · minSdk ${r.minSdk}", style = MaterialTheme.typography.bodySmall)
                             Text("dex 策略：${r.dexStrategy}", style = MaterialTheme.typography.bodySmall)
+                            if (r.multiplexedEntries > 0) {
+                                Text(
+                                    "数据复用 ${r.multiplexedEntries} 条目，省去约 ${Patcher.human(r.savedBytes)}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
                             Text(
-                                "产物默认不签名，请自行签名后再安装",
+                                "产物已通过结构 + CRC 自校验；默认不签名，请自行签名后再安装",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

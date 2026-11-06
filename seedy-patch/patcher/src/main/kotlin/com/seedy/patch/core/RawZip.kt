@@ -18,7 +18,9 @@ class RawZip(private val file: File) : AutoCloseable {
         val crc: Long,
         val compressedSize: Long,
         val size: Long,
-        val localOffset: Long
+        val localOffset: Long,
+        val time: Int,
+        val date: Int
     )
 
     private val raf = RandomAccessFile(file, "r")
@@ -37,7 +39,7 @@ class RawZip(private val file: File) : AutoCloseable {
             readU16(); readU16()                 // version made/needed
             val flags = readU16()
             val method = readU16()
-            readU16(); readU16()                 // time/date
+            val time = readU16(); val date = readU16()
             val crc = readU32()
             val csize = readU32()
             val size = readU32()
@@ -49,7 +51,7 @@ class RawZip(private val file: File) : AutoCloseable {
             val nameBytes = ByteArray(nameLen)
             raf.readFully(nameBytes)
             raf.skipBytes(extraLen + commentLen)
-            list.add(Entry(String(nameBytes, Charsets.UTF_8), method, flags, crc, csize, size, localOffset))
+            list.add(Entry(String(nameBytes, Charsets.UTF_8), method, flags, crc, csize, size, localOffset, time, date))
         }
         entries = list
     }
@@ -74,14 +76,20 @@ class RawZip(private val file: File) : AutoCloseable {
         }
     }
 
-    private class LocalHeader(val nameLen: Int, val extraLen: Int)
+    /** 本地头可变元数据（数据复用虚拟条目的中央目录必须逐字段照抄内嵌本地头） */
+    class LocalMeta(val version: Int, val flags: Int, val time: Int, val date: Int)
+
+    fun localMeta(entry: Entry): LocalMeta = localHeader(entry).let { LocalMeta(it.version, it.flags, it.time, it.date) }
+
+    private class LocalHeader(val nameLen: Int, val extraLen: Int, val version: Int, val flags: Int, val time: Int, val date: Int)
 
     private fun localHeader(entry: Entry): LocalHeader {
         raf.seek(entry.localOffset)
         check(readU32() == 0x04034b50L) { "本地头损坏: ${entry.name}" }
-        readU16(); readU16()                      // version/flags
+        val version = readU16()
+        val flags = readU16()
         check(readU16() == entry.method) { "本地头方法不一致: ${entry.name}" }
-        readU16(); readU16()                     // time/date
+        val time = readU16(); val date = readU16()
         if (entry.flags and 0x08 != 0) {
             // 数据描述符模式：本地头 CRC/尺寸为 0，真实值在数据后的描述符中
             readU32(); readU32(); readU32()
@@ -91,7 +99,10 @@ class RawZip(private val file: File) : AutoCloseable {
         }
         val nameLen = readU16()
         val extraLen = readU16()
-        return LocalHeader(nameLen, extraLen)
+        val nameBytes = ByteArray(nameLen)
+        raf.readFully(nameBytes)
+        check(String(nameBytes, Charsets.UTF_8) == entry.name) { "本地头名字不一致: ${entry.name}" }
+        return LocalHeader(nameLen, extraLen, version, flags, time, date)
     }
 
     private fun findEocd(): Long {

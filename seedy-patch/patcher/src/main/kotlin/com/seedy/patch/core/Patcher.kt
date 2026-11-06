@@ -33,11 +33,13 @@ data class PatchResult(
  *  5. 数据复用（ApkDataMultiplexing 方案）：原包 STORED 内嵌，重复条目改虚拟条目，
  *     中央目录偏移直指原包数据区，数据只存一份
  *  6. 不签名（产物交给用户自行签名）
+ *  7. 产物强制自校验（OutputVerifier）：结构/对齐/一致性/CRC 全量核验，不过即删除输出
  */
 object Patcher {
 
     const val STUB_APPLICATION = "eternal.future.seedy.ApplicationStub"
     const val STUB_FACTORY = "eternal.future.seedy.AppComponentFactoryStub"
+    const val HOST_ENTRY = "assets/seedy/original.apk"
 
     val SIGNATURE_ENTRY = Regex("""^META-INF/([^/]+\.(SF|RSA|DSA|EC|MF))$""", RegexOption.IGNORE_CASE)
     val DEX_ENTRY = Regex("""classes\d*\.dex""")
@@ -51,7 +53,7 @@ object Patcher {
         var stripped = 0
         try {
             val names = raw.entries.map { it.name }
-            check("assets/seedy/original.apk" !in names) { "该 APK 已过签处理（含 assets/seedy），拒绝重复注入" }
+            check(HOST_ENTRY !in names) { "该 APK 已过签处理（含 assets/seedy），拒绝重复注入" }
             val manifestEntry = raw.entries.firstOrNull { it.name == "AndroidManifest.xml" }
                 ?: throw IllegalStateException("APK 缺少 AndroidManifest.xml")
 
@@ -109,7 +111,9 @@ object Patcher {
                         else ->
                             writer.addRawEntry(
                                 e.name.toByteArray(Charsets.UTF_8), e.method,
-                                e.crc, e.size, e.compressedSize, e.flags
+                                e.crc, e.size, e.compressedSize,
+                                e.flags and 0x08.inv(),  // 归一数据描述符位：输出本地头带真实 CRC/尺寸
+                                e.time, e.date
                             ) { out -> raw.copyCompressed(e, out) }
                     }
                 }
@@ -119,15 +123,18 @@ object Patcher {
                 }
                 // 原包封入 assets/seedy/original.apk（STORED、16384 对齐，兼作数据复用宿主）
                 val hostDataOffset = writer.addFileEntry(
-                    "assets/seedy/original.apk", source,
+                    HOST_ENTRY, source,
                     AlignedZipWriter.STORED, AlignedZipWriter.SO_ALIGN
                 )
                 entryCount++
                 // 数据复用：虚拟条目本地头直指原包数据区内的原条目，数据零重复
+                // 中央目录可变字段（version/flags/time/date）照抄内嵌本地头，保证逐字段一致
                 for (e in multiplex) {
+                    val meta = raw.localMeta(e)
                     writer.addVirtualEntry(
-                        e.name.toByteArray(Charsets.UTF_8), e.method, e.flags,
-                        e.crc, e.size, e.compressedSize, hostDataOffset + e.localOffset
+                        e.name.toByteArray(Charsets.UTF_8), e.method, meta.flags,
+                        e.crc, e.size, e.compressedSize, hostDataOffset + e.localOffset,
+                        meta.version, meta.time, meta.date
                     )
                 }
                 for ((abi, so) in payload.nativeLibs) {
@@ -140,6 +147,15 @@ object Patcher {
                 tmp.copyTo(output, overwrite = true)
                 tmp.delete()
             }
+
+            // ---- 7. 产物强制自校验：不过即删除输出，绝不交付坏包 ----
+            val verifyReport = try {
+                OutputVerifier.verify(output, HOST_ENTRY) { log("[自校验] $it") }
+            } catch (t: Throwable) {
+                output.delete()
+                throw IllegalStateException("产物自校验失败（输出已删除）：${t.message}", t)
+            }
+            log("产物自校验通过：${verifyReport.entryCount} 条目（复用 ${verifyReport.virtualEntries}），CRC 全量核验 ${human(verifyReport.checkedBytes)}")
 
             log("数据复用：${multiplex.size} 个条目共享原包数据，省去约 ${human(savedBytes)}")
             log("输出 ${output.name}（${human(output.length())}，未签名）")
@@ -172,6 +188,10 @@ object Patcher {
     private fun canMultiplex(e: RawZip.Entry, raw: RawZip): Boolean {
         if (e.name.endsWith("/")) return false
         if (e.method != AlignedZipWriter.STORED && e.method != AlignedZipWriter.DEFLATED) return false
+        // 数据描述符条目、或中央目录与本地头字段不一致的条目不参与复用
+        //（虚拟条目复用的是原包本地头，中央目录必须与其逐字段一致，否则严格解析器判坏包）
+        if (e.flags and 0x08 != 0) return false
+        if (raw.localMeta(e).flags != e.flags) return false
         if (e.method == AlignedZipWriter.STORED) {
             val dataOff = raw.dataOffset(e)
             if (e.name == "resources.arsc" && dataOff % 4L != 0L) return false

@@ -30,6 +30,7 @@ class AlignedZipWriter(private val out: OutputStream) {
         const val DEFLATED = 8
         const val SO_ALIGN = 16384
         const val DEFAULT_ALIGN = 4096
+        const val DEFAULT_DATE = 0x5A21
     }
 
     private class CentralEntry(
@@ -39,7 +40,10 @@ class AlignedZipWriter(private val out: OutputStream) {
         val crc: Long,
         val compressedSize: Long,
         val size: Long,
-        val localOffset: Long
+        val localOffset: Long,
+        val versionNeeded: Int,
+        val time: Int,
+        val date: Int
     )
 
     private val central = ArrayList<CentralEntry>()
@@ -65,15 +69,18 @@ class AlignedZipWriter(private val out: OutputStream) {
         size: Long,
         compressedSize: Long,
         flags: Int = 0,
+        time: Int = 0,
+        date: Int = DEFAULT_DATE,
         copyTo: (OutputStream) -> Unit
     ) {
-        writeEntry(name, method, flags, crc, size, compressedSize, writePayload = copyTo)
+        writeEntry(name, method, flags, crc, size, compressedSize, 0, time, date, writePayload = copyTo)
     }
 
     /**
      * 数据复用虚拟条目：不写任何字节，仅登记中央目录记录，
      * 其本地头偏移指向文件内已存在的数据（宿主条目数据区内的原条目本地头）。
      * [localHeaderOffset] 为目标本地头在输出文件内的绝对偏移。
+     * [versionNeeded]/[flags]/[time]/[date] 必须与目标本地头逐字段一致（由调用方照抄内嵌本地头）。
      */
     fun addVirtualEntry(
         name: ByteArray,
@@ -82,11 +89,14 @@ class AlignedZipWriter(private val out: OutputStream) {
         crc: Long,
         size: Long,
         compressedSize: Long,
-        localHeaderOffset: Long
+        localHeaderOffset: Long,
+        versionNeeded: Int,
+        time: Int,
+        date: Int
     ) {
         check(central.size < 0xFFFF) { "条目数超出 ZIP 限制（不支持 ZIP64）" }
         check(localHeaderOffset < 0xFFFFFFFFL) { "偏移超过 4GB（不支持 ZIP64）" }
-        central.add(CentralEntry(name, method, flags, crc, compressedSize, size, localHeaderOffset))
+        central.add(CentralEntry(name, method, flags, crc, compressedSize, size, localHeaderOffset, versionNeeded, time, date))
     }
 
     /** 文件条目（STORED，流式两遍：先算 CRC 再落盘，避免整文件进堆）；返回数据起始偏移 */
@@ -120,6 +130,8 @@ class AlignedZipWriter(private val out: OutputStream) {
         size: Long,
         compressedSize: Long,
         alignOverride: Int = 0,
+        time: Int = 0,
+        date: Int = DEFAULT_DATE,
         writePayload: (OutputStream) -> Unit
     ): Long {
         check(central.size < 0xFFFF) { "条目数超出 ZIP 限制（不支持 ZIP64）" }
@@ -143,8 +155,8 @@ class AlignedZipWriter(private val out: OutputStream) {
         head.putShort(20)                      // version needed
         head.putShort(flags.toShort())         // flags
         head.putShort(method.toShort())
-        head.putShort(0)                       // mod time
-        head.putShort(0x5A21)                  // mod date
+        head.putShort(time.toShort())          // mod time
+        head.putShort(date.toShort())          // mod date
         head.putInt(crc.toInt())
         head.putInt(compressedSize.toInt())
         head.putInt(size.toInt())
@@ -163,7 +175,7 @@ class AlignedZipWriter(private val out: OutputStream) {
         writePayload(out)
         pos = dataOffset + compressedSize
 
-        central.add(CentralEntry(nameBytes, method, flags, crc, compressedSize, size, localOffset))
+        central.add(CentralEntry(nameBytes, method, flags, crc, compressedSize, size, localOffset, 20, time, date))
         return dataOffset
     }
 
@@ -173,11 +185,11 @@ class AlignedZipWriter(private val out: OutputStream) {
             val b = ByteBuffer.allocate(46).order(ByteOrder.LITTLE_ENDIAN)
             b.putInt(0x02014b50)
             b.putShort(20)                     // version made by
-            b.putShort(20)                     // version needed
+            b.putShort(e.versionNeeded.toShort()) // version needed
             b.putShort(e.flags.toShort())      // flags
             b.putShort(e.method.toShort())
-            b.putShort(0)                      // time
-            b.putShort(0x5A21)                 // date
+            b.putShort(e.time.toShort())       // time
+            b.putShort(e.date.toShort())       // date
             b.putInt(e.crc.toInt())
             b.putInt(e.compressedSize.toInt())
             b.putInt(e.size.toInt())

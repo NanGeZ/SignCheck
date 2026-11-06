@@ -101,14 +101,13 @@ class AndroidManifestEditor(private val raw: ByteArray) {
             val isUtf8 = flags and UTF8_FLAG != 0
             for (i in 0 until stringCount) {
                 val start = stringsStart + offsets[i]
-                var end = start
-                if (isUtf8) {
-                    while (bytes[end].toInt() != 0) end++
-                    end += 1
-                } else {
-                    while (!(bytes[end].toInt() == 0 && bytes[end + 1].toInt() == 0)) end += 2
-                    end += 2
-                }
+                // 按长度前缀定界（含 0 终止符），不能扫 0 字节定位：
+                // 空字符串条目以 0 开头，扫 0 会把条目截断、丢掉终止符，
+                // 重写后的字符串池整体校验失败（PMS/MT 读不到清单 → packageInfo is null）
+                val end = entryEnd(bytes, isUtf8, start)
+                check(end <= bytes.size) { "字符串池条目 $i 越界" }
+                if (isUtf8) check(bytes[end - 1].toInt() == 0) { "字符串 $i 未以 0 终止（池损坏）" }
+                else check(bytes[end - 2].toInt() == 0 && bytes[end - 1].toInt() == 0) { "字符串 $i 未以 0 终止（池损坏）" }
                 entries.add(bytes.copyOfRange(start, end))
             }
             styleData =
@@ -163,6 +162,17 @@ class AndroidManifestEditor(private val raw: ByteArray) {
             out.write(0)
             return out.toByteArray()
         }
+
+        /** 字符串条目定界：长度前缀 + 数据 + 0 终止符，返回条目结束（不含）位置 */
+        private fun entryEnd(bytes: ByteArray, isUtf8: Boolean, start: Int): Int =
+            if (isUtf8) {
+                val (_, p) = readLen8(bytes, start)
+                val (byteLen, q) = readLen8(bytes, p)
+                q + byteLen + 1
+            } else {
+                val (charLen, p) = readLen16(bytes, start)
+                p + charLen * 2 + 2
+            }
 
         private fun readLen8(b: ByteArray, at: Int): Pair<Int, Int> {
             val v = b[at].toInt() and 0xFF
